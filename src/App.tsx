@@ -1,24 +1,17 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
+import TypingGame from './components/TypingGame';
 
 function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <h1>Type Refiner</h1>
+        <p>Improve your typing speed and identify your weak spots</p>
       </header>
+      <main>
+        <TypingGame />
+      </main>
     </div>
   );
 }
