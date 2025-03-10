@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './TypingGame.css';
+import { dictionary } from './dictionary';
 
 interface LetterTiming {
   letter: string;
@@ -20,27 +21,25 @@ interface PerformancePoint {
   accuracy: number;
 }
 
+interface WordLengthTiming {
+  length: number;
+  averageTime: number;
+  occurrences: number;
+}
+
+interface BigramTiming {
+  bigram: string;
+  averageTime: number;
+  occurrences: number;
+}
+
 const WORDS_COUNT = 20;
 
 const generateWords = (count: number): string[] => {
-  // Extended word list for typing practice
-  const words = [
-    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'it', 'for', 'not', 'on', 'with', 'he',
-    'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or',
-    'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about',
-    'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know',
-    'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than',
-    'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also', 'back', 'after', 'use', 'two',
-    'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give',
-    'day', 'most', 'us', 'time', 'person', 'year', 'back', 'list', 'name', 'just', 'over', 'state', 'know',
-    'take', 'into', 'time', 'year', 'write', 'like', 'side', 'many', 'child', 'point', 'world', 'hand',
-    'school', 'life', 'tell', 'keep', 'last', 'eye', 'never', 'let', 'next', 'should', 'need', 'try'
-  ];
-  
   const result: string[] = [];
   for (let i = 0; i < count; i++) {
-    const randomIndex = Math.floor(Math.random() * words.length);
-    result.push(words[randomIndex]);
+    const randomIndex = Math.floor(Math.random() * dictionary.length);
+    result.push(dictionary[randomIndex]);
   }
   return result;
 };
@@ -58,64 +57,61 @@ const TypingGame: React.FC = () => {
   const [lastKeyPressTime, setLastKeyPressTime] = useState<number | null>(null);
   const [completedInputs, setCompletedInputs] = useState<string[]>([]);
   const [performanceData, setPerformanceData] = useState<PerformancePoint[]>([]);
+  const [selectedTab, setSelectedTab] = useState<'letters' | 'bigrams'>('letters');
 
   // Generate words only once at mount and when game is reset
   useEffect(() => {
     setWords(generateWords(WORDS_COUNT)); // Doubled the number of words
   }, []);
 
-  const updatePerformanceData = useCallback((overrideInput?: string) => {
+  useEffect(() => {
+    performanceData.forEach(point => {
+      console.log(point.wpm);
+    });
+    console.log("--------------------------------");
+  }, [performanceData]);
+
+  const updatePerformanceData = useCallback((overrideInput: string, currentTime: number) => {
     if (!startTime) return;
   
-    // Use overrideInput if provided, otherwise use currentInput
-    const effectiveInput = overrideInput !== undefined ? overrideInput : currentInput;
-    const timeInMinutes = (performance.now() - startTime) / 60000;
-    
-    // Calculate cumulative stats up to current point
-    let totalCorrectChars = 0;
-    let totalExpectedChars = 0;
-
+    const timeInMinutes = (currentTime - startTime) / 60000;
   
-    // Count all words up to and including current word
+    // Calculate cumulative stats up to the current word
+    let totalCorrectChars = 0;
+    let totalPossibleChars = 0;  // Total characters that should have been typed
+  
+    // Count all words up to and including the current word
     for (let idx = 0; idx <= wordIndex; idx++) {
       const word = words[idx];
-      // For finished words use completedInputs; for current word, use effectiveInput
-      const input = idx < wordIndex ? completedInputs[idx] : effectiveInput;
+      const input = idx < wordIndex ? completedInputs[idx] : overrideInput;
       
+      // Add all characters in this word to total possible
+      totalPossibleChars += word.length;
+      
+      // Count correct characters
       for (let charIdx = 0; charIdx < word.length; charIdx++) {
-        // Only count if we have typed this character for the current word
-        if (idx < wordIndex || charIdx < effectiveInput.length) {
-          totalExpectedChars++;
-          if (input[charIdx] === word[charIdx]) {
-            totalCorrectChars++;
-          }
+        if (input && input[charIdx] === word[charIdx]) {
+          totalCorrectChars++;
         }
       }
-  
-      // Count extra characters typed beyond word length as mistakes
-      if (input && input.length > word.length) {
-        totalExpectedChars += input.length - word.length;
+
+      // Add space after each word (except the last one) as a correct character if word was completed
+      if (idx < wordIndex) {
+        totalCorrectChars++; // Count the space after completed words
+        totalPossibleChars++; // Add space to possible chars
       }
     }
   
-    const currentAccuracy = totalExpectedChars > 0 
-      ? Math.round((totalCorrectChars / totalExpectedChars) * 100)
+    // Calculate cumulative accuracy
+    const currentAccuracy = totalPossibleChars > 0 
+      ? Math.round((totalCorrectChars / totalPossibleChars) * 100)
       : 100;
   
-    const completedWords = wordIndex;
-    const currentWordProgress = effectiveInput.length / (words[wordIndex]?.length || 1);
-    const totalWordsTyped = completedWords + currentWordProgress;
-    const currentWPM = Math.round(totalWordsTyped / timeInMinutes);
-    
-    // Debug logs to show current state of calculations
-    // console.log("updatePerformanceData:");
-    // console.log("wordIndex:", wordIndex);
-    // console.log("effectiveInput:", effectiveInput);
-    // console.log("totalCorrectChars:", totalCorrectChars);
-    // console.log("totalExpectedChars:", totalExpectedChars);
-    // console.log("accuracy:", currentAccuracy);
-    // console.log("WPM:", currentWPM);
-    // console.log("--------------------------------");
+    // Calculate WPM based on correctly typed characters (1 word = 5 characters)
+    const standardizedWords = totalCorrectChars / 5;
+    const currentWPM = timeInMinutes > 0 
+      ? Math.round((standardizedWords / timeInMinutes) * 100) / 100
+      : 0;
   
     setPerformanceData(prev => {
       const newPoint = {
@@ -124,16 +120,15 @@ const TypingGame: React.FC = () => {
         accuracy: currentAccuracy
       };
   
-      // Debug log for new point
-      console.log("New performance point:", newPoint);
-  
       // Update or add the data point for the current wordIndex
       if (prev.length > 0 && prev[prev.length - 1].wordIndex === wordIndex) {
         return [...prev.slice(0, -1), newPoint];
       }
       return [...prev, newPoint];
     });
-  }, [startTime, wordIndex, currentInput, words, completedInputs]);
+  }, [startTime, wordIndex, words, completedInputs]);
+  
+  
   
   
   
@@ -148,8 +143,19 @@ const TypingGame: React.FC = () => {
       if (!currentWord) return;
 
       const currentTime = performance.now();
+      let newStartTime = startTime;
+      let newLetterTimings = {...letterTimings};
+      let newLetterMistakes = {...letterMistakes};
+      let newTotalMistakes = totalMistakes;
+      let newTotalKeystrokes = totalKeystrokes;
+      let newLastKeyPressTime = currentTime;
+      let newCompletedInputs = [...completedInputs];
+      let newWordIndex = wordIndex;
+      let newCurrentInput = currentInput;
+      let newIsGameComplete = isGameComplete;
+
       if (!startTime) {
-        setStartTime(currentTime);
+        newStartTime = currentTime;
       }
 
       // Handle space - move to next word and count mistakes
@@ -157,90 +163,83 @@ const TypingGame: React.FC = () => {
         // Count remaining untyped characters as mistakes
         const remainingChars = currentWord.slice(currentInput.length);
         remainingChars.split('').forEach(char => {
-          setLetterMistakes(prev => ({
-            ...prev,
-            [char]: (prev[char] || 0) + 1
-          }));
+          newLetterMistakes[char] = (newLetterMistakes[char] || 0) + 1;
         });
-        setTotalMistakes(prev => prev + remainingChars.length);
-
+        newTotalMistakes += remainingChars.length;
+        
         // Complete the game if it's the last word
         if (wordIndex === words.length - 1) {
-          const newCompletedInputs = [...completedInputs, currentInput];
-          setCompletedInputs(newCompletedInputs);
-          setIsGameComplete(true);
-          setCurrentInput(currentInput);
-          // Use the actual values we're setting, not the state which hasn't updated yet
-          updatePerformanceData(currentInput);
+          newCompletedInputs.push(currentInput);
+          newIsGameComplete = true;
+          // Update performance data with current values
+          updatePerformanceData(currentInput, currentTime);
+        } else {
+          // Move to next word
+          newCompletedInputs.push(currentInput);
+          newWordIndex = wordIndex + 1;
+          newCurrentInput = '';
+          // Update performance data with current values
+          updatePerformanceData(currentInput, currentTime);
+        }
+      } else {
+        // Don't allow typing more characters than the word length
+        if (currentInput.length >= currentWord.length) {
           return;
         }
+
+        // Record timing for the character
+        if (lastKeyPressTime) {
+          const timings = newLetterTimings[e.key] || [];
+          newLetterTimings[e.key] = [...timings, currentTime - lastKeyPressTime];
+        }
+
+        newCurrentInput = currentInput + e.key;
+        newTotalKeystrokes += 1;
         
-        // Move to next word
-        const newCompletedInputs = [...completedInputs, currentInput];
-        const newWordIndex = wordIndex + 1;
-        
-        // Update performance data with current values before state updates
-        updatePerformanceData(currentInput);
-        
-        // Then update state
-        setCompletedInputs(newCompletedInputs);
-        setCurrentInput('');
-        setWordIndex(newWordIndex);
-        return;
+        // Check for mistakes
+        const expectedChar = currentWord[currentInput.length];
+        if (expectedChar !== undefined && expectedChar !== e.key) {
+          newLetterMistakes[expectedChar] = (newLetterMistakes[expectedChar] || 0) + 1;
+          newTotalMistakes += 1;
+        }
+
+        // End game if on last word and typed enough characters
+        if (wordIndex === words.length - 1 && newCurrentInput.length >= currentWord.length) {
+          newCompletedInputs.push(newCurrentInput);
+          newIsGameComplete = true;
+          // Update performance data with new values
+          updatePerformanceData(newCurrentInput, currentTime);
+        } else {
+          // Update performance data with new input
+          updatePerformanceData(newCurrentInput, currentTime);
+        }
       }
 
-      // Don't allow typing more characters than the word length
-      if (currentInput.length >= currentWord.length) {
-        return;
-      }
+      // Batch all state updates
+      setStartTime(newStartTime);
+      setLetterTimings(newLetterTimings);
+      setLetterMistakes(newLetterMistakes);
+      setTotalMistakes(newTotalMistakes);
+      setTotalKeystrokes(newTotalKeystrokes);
+      setLastKeyPressTime(newLastKeyPressTime);
+      setCompletedInputs(newCompletedInputs);
+      setWordIndex(newWordIndex);
+      setCurrentInput(newCurrentInput);
+      setIsGameComplete(newIsGameComplete);
 
-      // Record timing for the character
-      if (lastKeyPressTime) {
-        setLetterTimings(prev => {
-          const timings = prev[e.key] || [];
-          return {
-            ...prev,
-            [e.key]: [...timings, currentTime - lastKeyPressTime]
-          };
-        });
-      }
-      
-      setLastKeyPressTime(currentTime);
+      // console.log(newCurrentInput);
+      // performanceData.forEach(point => {
+      //   console.log(point.wpm);
+      // });
+      // console.log("--------------------------------");
 
-      const newInput = currentInput + e.key;
-      
-      // Check for mistakes
-      const expectedChar = currentWord[currentInput.length];
-      if (expectedChar !== undefined && expectedChar !== e.key) {
-        setLetterMistakes(prev => ({
-          ...prev,
-          [expectedChar]: (prev[expectedChar] || 0) + 1
-        }));
-        setTotalMistakes(prev => prev + 1);
-      }
-      setTotalKeystrokes(prev => prev + 1);
-
-      // End game if on last word and typed enough characters
-      if (wordIndex === words.length - 1 && newInput.length >= currentWord.length) {
-        const newCompletedInputs = [...completedInputs, newInput];
-        setCompletedInputs(newCompletedInputs);
-        setIsGameComplete(true);
-        setCurrentInput(newInput);
-        // Use actual values we're setting
-        updatePerformanceData(newInput);
-        return;
-      }
-
-      // Update performance data with new input before state update
-      updatePerformanceData(newInput);
-      setCurrentInput(newInput);
     } else if (e.key === 'Backspace') {
       e.preventDefault();
       const newInput = currentInput.slice(0, -1);
-      updatePerformanceData(newInput);
+      updatePerformanceData(newInput, performance.now());
       setCurrentInput(newInput);
     }
-  }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, isGameComplete, updatePerformanceData, completedInputs]);
+  }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, isGameComplete, updatePerformanceData, completedInputs, letterTimings, letterMistakes, totalMistakes, totalKeystrokes]);
 
 
   // Set up keyboard listener
@@ -355,6 +354,44 @@ const TypingGame: React.FC = () => {
     return mistakes.sort((a, b) => b.count - a.count);
   };
 
+  const calculateBigramStats = (): BigramTiming[] => {
+    const bigramStats = new Map<string, number[]>();
+    
+    // Process all words
+    words.forEach((word, wordIdx) => {
+      const input = wordIdx < wordIndex ? completedInputs[wordIdx] : 
+                    wordIdx === wordIndex ? currentInput : '';
+      
+      // Skip if no input or only one character
+      if (!input || input.length < 2) return;
+      
+      // Process each pair of consecutive letters
+      for (let charIdx = 0; charIdx < word.length - 1; charIdx++) {
+        // Only process if both characters were typed correctly
+        if (input[charIdx] === word[charIdx] && 
+            input[charIdx + 1] === word[charIdx + 1]) {
+          const bigram = word.slice(charIdx, charIdx + 2);
+          const timings = bigramStats.get(bigram) || [];
+          
+          // Get timing for the second character of the bigram
+          const timing = letterTimings[word[charIdx + 1]]?.[timings.length];
+          if (timing) {
+            timings.push(timing);
+            bigramStats.set(bigram, timings);
+          }
+        }
+      }
+    });
+
+    return Array.from(bigramStats.entries())
+      .map(([bigram, timings]) => ({
+        bigram,
+        averageTime: Math.round(timings.reduce((a, b) => a + b, 0) / timings.length),
+        occurrences: timings.length
+      }))
+      .sort((a, b) => b.averageTime - a.averageTime);
+  };
+
   const calculateStats = () => {
     if (!startTime || !isGameComplete) return null;
 
@@ -375,6 +412,12 @@ const TypingGame: React.FC = () => {
         }
       }
 
+      // Add space after each word (except the last one) as a correct character if word was completed
+      if (idx < words.length - 1 && input.length >= word.length) {
+        totalCorrectChars++; // Count the space after completed words
+        totalExpectedChars++; // Add space to possible chars
+      }
+
       // Count any extra characters typed beyond word length as mistakes
       if (input.length > word.length) {
         totalExpectedChars += input.length - word.length;
@@ -385,7 +428,9 @@ const TypingGame: React.FC = () => {
       ? Math.round((totalCorrectChars / totalExpectedChars) * 100)
       : 100;
 
-    const wpm = Math.round(words.length / timeInMinutes);
+    // Calculate WPM using standardized word length (5 characters)
+    const standardizedWords = totalCorrectChars / 5;
+    const wpm = Math.round((standardizedWords / timeInMinutes) * 100) / 100;
 
     return { wpm, accuracy };
   };
@@ -453,9 +498,10 @@ const TypingGame: React.FC = () => {
 
   return (
     <div className="typing-game">
+                {startTime!=null ? (performance.now() - startTime)/60000: 0}
       {!isGameComplete ? (
         <div className="game-container">
-          <div className="words-display">
+            <div className="words-display">
             {words.map((word, idx) => (
               <span key={idx}>
                 {renderWord(word, idx)}
@@ -472,11 +518,11 @@ const TypingGame: React.FC = () => {
           <div className="overall-stats">
             <div className="stat-box">
               <h3>Speed</h3>
-              <div className="stat-value">{stats?.wpm} WPM</div>
+              <div className="stat-value">{performanceData[performanceData.length - 1].wpm} WPM</div>
             </div>
             <div className="stat-box">
               <h3>Accuracy</h3>
-              <div className="stat-value">{stats?.accuracy}%</div>
+              <div className="stat-value">{performanceData[performanceData.length - 1].accuracy}%</div>
             </div>
           </div>
           <div className="performance-graph">
@@ -485,13 +531,15 @@ const TypingGame: React.FC = () => {
               <LineChart data={performanceData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
                 <CartesianGrid vertical={true} horizontal={false} />
                 <XAxis 
-                  dataKey="wordIndex" 
+                  dataKey="wordIndex"
                   label={{ value: 'Words Typed', position: 'bottom' }}
                   interval={1}
+                  tickFormatter={(value) => `${value + 1}`}
                 />
                 <YAxis 
                   yAxisId="left"
-                  domain={[0, 200]}
+                  domain={[0, Math.ceil(Math.max(...performanceData.map(d => d.wpm)) / 10) * 10]} // Calculate max as nearest multiple of 10
+                  ticks={Array.from({ length: Math.floor(Math.ceil(Math.max(...performanceData.map(d => d.wpm)) / 10) * 10 / 10) + 1 }, (_, i) => i * 10)} // Ensure ticks at multiples of 10
                   label={{ value: 'WPM', angle: -90, position: 'left' }}
                 />
                 <YAxis 
@@ -528,37 +576,72 @@ const TypingGame: React.FC = () => {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          {calculateLetterStats().length > 0 && (
-            <div className="letter-stats">
-              <h3>Letter Timing Analysis</h3>
-              <div className="stats-grid">
-                {calculateLetterStats().map(({ letter, averageTime, occurrences }) => (
-                  <div key={letter} className="stat-item">
-                    <span className="letter">
-                      {letter === ' ' ? '␣' : letter}
-                    </span>
-                    <span className="time">{averageTime.toFixed(0)}ms</span>
-                    <span className="occurrences">
-                      {occurrences} times
-                    </span>
+          <div className="stats-tabs">
+            <button 
+              className={`tab-button ${selectedTab === 'letters' ? 'active' : ''}`}
+              onClick={() => setSelectedTab('letters')}
+            >
+              Letter Analysis
+            </button>
+            <button 
+              className={`tab-button ${selectedTab === 'bigrams' ? 'active' : ''}`}
+              onClick={() => setSelectedTab('bigrams')}
+            >
+              Letter Combinations
+            </button>
+          </div>
+          {selectedTab === 'letters' ? (
+            <>
+              {calculateLetterStats().length > 0 && (
+                <div className="letter-stats">
+                  <h3>Letter Timing Analysis</h3>
+                  <div className="stats-grid">
+                    {calculateLetterStats().map(({ letter, averageTime, occurrences }) => (
+                      <div key={letter} className="stat-item">
+                        <span className="letter">
+                          {letter === ' ' ? '␣' : letter}
+                        </span>
+                        <span className="time">{averageTime.toFixed(0)}ms</span>
+                        <span className="occurrences">
+                          {occurrences} times
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {calculateMistakeStats().length > 0 && (
+                </div>
+              )}
+              {calculateMistakeStats().length > 0 && (
+                <div className="letter-stats">
+                  <h3>Common Mistakes</h3>
+                  <div className="stats-grid">
+                    {calculateMistakeStats().map(({ expected, typed, count }) => (
+                      <div key={`${expected}-${typed}`} className="stat-item mistake-item">
+                        <div className="mistake-letters">
+                          <span className="letter expected">{expected}</span>
+                          <span className="arrow">→</span>
+                          <span className="letter typed">{typed === 'skip' ? '(skip)' : typed}</span>
+                        </div>
+                        <span className="occurrences">
+                          {count} time{count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
             <div className="letter-stats">
-              <h3>Common Mistakes</h3>
+              <h3>Letter Combinations Analysis</h3>
               <div className="stats-grid">
-                {calculateMistakeStats().map(({ expected, typed, count }) => (
-                  <div key={`${expected}-${typed}`} className="stat-item mistake-item">
-                    <div className="mistake-letters">
-                      <span className="letter expected">{expected}</span>
-                      <span className="arrow">→</span>
-                      <span className="letter typed">{typed === 'skip' ? '(skip)' : typed}</span>
-                    </div>
+                {calculateBigramStats().map(({ bigram, averageTime, occurrences }) => (
+                  <div key={bigram} className="stat-item">
+                    <span className="letter">
+                      {bigram}
+                    </span>
+                    <span className="time">{averageTime}ms</span>
                     <span className="occurrences">
-                      {count} time{count !== 1 ? 's' : ''}
+                      {occurrences} time{occurrences !== 1 ? 's' : ''}
                     </span>
                   </div>
                 ))}
