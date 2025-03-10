@@ -249,4 +249,51 @@
 
 .mistake-letters .letter.typed {
   color: #666;
+}
+
+.targeting-info {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+.targeting-section {
+  text-align: center;
+}
+
+.targeting-section h4 {
+  margin: 0 0 10px 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.targeted-items {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.targeted-item {
+  background: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  color: #2196f3;
+  font-weight: bold;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.targeted-pattern {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-color: #4a9eff;
+}
+
+.targeted-pattern.bigram {
+  text-decoration: underline double;
+  text-decoration-color: #4a9eff;
 } 
