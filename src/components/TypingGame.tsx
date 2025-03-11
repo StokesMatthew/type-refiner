@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './TypingGame.css';
 import { dictionary } from './dictionary';
+import { TimingHistory, PerformancePoint } from './types';
+import { generateWeightedWords, getTargetedPatterns } from './utils';
+import GameScreen from './GameScreen';
+import ResultsScreen from './ResultsScreen';
 
 interface LetterTiming {
   letter: string;
@@ -13,12 +17,6 @@ interface LetterMistake {
   expected: string;
   typed: string;
   count: number;
-}
-
-interface PerformancePoint {
-  wordIndex: number;
-  wpm: number;
-  accuracy: number;
 }
 
 interface WordLengthTiming {
@@ -38,14 +36,6 @@ interface GamePerformance {
   accuracy: number;
 }
 
-interface TimingHistory {
-  letters: { [key: string]: number };  // letter -> average time
-  bigrams: { [key: string]: number };  // bigram -> average time
-  historicalLetters: { [key: string]: number[] };  // letter -> all times across games
-  historicalBigrams: { [key: string]: number[] };  // bigram -> all times across games
-  historicalPerformance: GamePerformance[];  // performance data for each completed game
-}
-
 const WORDS_COUNT = 20;
 
 const TypingGame: React.FC = () => {
@@ -54,6 +44,7 @@ const TypingGame: React.FC = () => {
   const [wordIndex, setWordIndex] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [letterTimings, setLetterTimings] = useState<{ [key: string]: number[] }>({});
+  const [bigramTimings, setBigramTimings] = useState<{ [key: string]: number[] }>({});
   const [letterMistakes, setLetterMistakes] = useState<{ [key: string]: number }>({});
   const [totalKeystrokes, setTotalKeystrokes] = useState(0);
   const [totalMistakes, setTotalMistakes] = useState(0);
@@ -144,18 +135,15 @@ const TypingGame: React.FC = () => {
   // Update timing history when game completes
   useEffect(() => {
     if (isGameComplete) {
-      // Only update once when the game completes
       const letterStats = calculateLetterStats();
       const bigramStats = calculateBigramStats();
       
       const newLetterTimings: { [key: string]: number } = {};
       const newHistoricalLetters = { ...timingHistory.historicalLetters };
       
-      // Update current session averages and historical data
       letterStats.forEach(({ letter, averageTime }) => {
         newLetterTimings[letter] = averageTime;
         
-        // Get all timings for this letter from the current session
         const currentTimings: number[] = [];
         words.forEach((word, wordIdx) => {
           const input = completedInputs[wordIdx] || '';
@@ -166,7 +154,6 @@ const TypingGame: React.FC = () => {
           });
         });
         
-        // Add current session timings to historical data
         if (!newHistoricalLetters[letter]) {
           newHistoricalLetters[letter] = [];
         }
@@ -176,25 +163,24 @@ const TypingGame: React.FC = () => {
       const newBigramTimings: { [key: string]: number } = {};
       const newHistoricalBigrams = { ...timingHistory.historicalBigrams };
       
-      // Update current session bigram averages and historical data
       bigramStats.forEach(({ bigram, averageTime }) => {
         newBigramTimings[bigram] = averageTime;
         
-        // Get all timings for this bigram from the current session
         const currentTimings: number[] = [];
         words.forEach((word, wordIdx) => {
           const input = completedInputs[wordIdx] || '';
           for (let i = 0; i < word.length - 1; i++) {
             if (word.slice(i, i + 2) === bigram && 
                 input[i] === word[i] && 
-                input[i + 1] === word[i + 1] &&
-                letterTimings[word[i + 1]]?.[currentTimings.length]) {
-              currentTimings.push(letterTimings[word[i + 1]][currentTimings.length]);
+                input[i + 1] === word[i + 1]) {
+              const timings = bigramTimings[bigram] || [];
+              if (timings.length > 0) {
+                currentTimings.push(...timings);
+              }
             }
           }
         });
         
-        // Add current session timings to historical data
         if (!newHistoricalBigrams[bigram]) {
           newHistoricalBigrams[bigram] = [];
         }
@@ -211,126 +197,6 @@ const TypingGame: React.FC = () => {
     }
   }, [isGameComplete]);
 
-  // Get the letters and bigrams being targeted (for display)
-  const getTargetedPatterns = (): { letters: string[], bigrams: string[] } => {
-    // Get top 5 slowest letters and bigrams
-    const letters = Object.entries(timingHistory.letters)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-      .map(([letter]) => letter);
-
-    const bigrams = Object.entries(timingHistory.bigrams)
-      .sort(([,a], [,b]) => (b/2) - (a/2)) // Normalize bigram times
-      .slice(0, 5)
-      .map(([bigram]) => bigram);
-
-    return { letters, bigrams };
-  };
-
-  // Generate words weighted by difficulty
-  const generateWeightedWords = (count: number, timingHistory: TimingHistory): string[] => {
-    const { letters, bigrams } = getTargetedPatterns();
-    
-    // First, find words that contain our targeted patterns
-    const wordsWithTargets = new Set<string>();
-    
-    // Find words containing targeted letters
-    letters.forEach(letter => {
-      dictionary.forEach(word => {
-        if (word.includes(letter)) {
-          wordsWithTargets.add(word);
-        }
-      });
-    });
-    
-    // Find words containing targeted bigrams
-    bigrams.forEach(bigram => {
-      dictionary.forEach(word => {
-        if (word.includes(bigram)) {
-          wordsWithTargets.add(word);
-        }
-      });
-    });
-    
-    // Calculate weights for each word
-    const wordWeights = dictionary.map(word => {
-      let weight = 1;
-      
-      // Add weight for difficult letters
-      for (const char of word) {
-        const letterTime = timingHistory.letters[char];
-        if (letterTime) {
-          weight += letterTime / 1000;
-        }
-      }
-      
-      // Add weight for difficult bigrams
-      for (let i = 0; i < word.length - 1; i++) {
-        const bigram = word.slice(i, i + 2);
-        const bigramTime = timingHistory.bigrams[bigram];
-        if (bigramTime) {
-          weight += (bigramTime / 2) / 500;
-        }
-      }
-      
-      // Bonus weight if word contains targeted patterns
-      if (wordsWithTargets.has(word)) {
-        weight *= 2;
-      }
-      
-      return { word, weight };
-    });
-
-    // Sort by weight and take top 10%
-    const sortedWords = wordWeights.sort((a, b) => b.weight - a.weight);
-    const topTenPercent = sortedWords.slice(0, Math.floor(sortedWords.length * 0.1));
-    
-    const result: string[] = [];
-    
-    // Ensure we include at least one word for each targeted pattern
-    letters.forEach(letter => {
-      const wordWithLetter = topTenPercent.find(({ word }) => word.includes(letter));
-      if (wordWithLetter && !result.includes(wordWithLetter.word)) {
-        result.push(wordWithLetter.word);
-      }
-    });
-    
-    bigrams.forEach(bigram => {
-      const wordWithBigram = topTenPercent.find(({ word }) => word.includes(bigram));
-      if (wordWithBigram && !result.includes(wordWithBigram.word)) {
-        result.push(wordWithBigram.word);
-      }
-    });
-    
-    // Fill remaining slots with weighted and random words
-    const remainingCount = count - result.length;
-    const weightedCount = Math.floor(remainingCount / 2);
-    
-    // Add weighted words
-    for (let i = 0; i < weightedCount; i++) {
-      const word = topTenPercent[i % topTenPercent.length].word;
-      if (!result.includes(word)) {
-        result.push(word);
-      }
-    }
-    
-    // Fill the rest with random words
-    while (result.length < count) {
-      const randomWord = dictionary[Math.floor(Math.random() * dictionary.length)];
-      if (!result.includes(randomWord)) {
-        result.push(randomWord);
-      }
-    }
-    
-    // Shuffle the array
-    for (let i = result.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [result[i], result[j]] = [result[j], result[i]];
-    }
-    
-    return result;
-  };
-
   // Initial word generation
   useEffect(() => {
     setWords(generateWeightedWords(WORDS_COUNT, timingHistory));
@@ -342,6 +208,7 @@ const TypingGame: React.FC = () => {
     setWordIndex(0);
     setStartTime(null);
     setLetterTimings({});
+    setBigramTimings({});
     setLetterMistakes({});
     setTotalKeystrokes(0);
     setTotalMistakes(0);
@@ -415,23 +282,17 @@ const TypingGame: React.FC = () => {
     });
   }, [startTime, wordIndex, words, completedInputs]);
   
-  
-  
-  
-  
-
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
-    // Only handle printable characters and space
     if (e.key.length === 1 || e.key === ' ') {
       e.preventDefault();
       
       const currentWord = words[wordIndex];
-      // Guard against undefined word
       if (!currentWord) return;
 
       const currentTime = performance.now();
       let newStartTime = startTime;
       let newLetterTimings = {...letterTimings};
+      let newBigramTimings = {...bigramTimings};
       let newLetterMistakes = {...letterMistakes};
       let newTotalMistakes = totalMistakes;
       let newTotalKeystrokes = totalKeystrokes;
@@ -446,71 +307,69 @@ const TypingGame: React.FC = () => {
         newStartTime = currentTime;
       }
 
-      // Handle space - move to next word
       if (e.key === ' ') {
         if (currentInput.length > 0) {
           const wordLength = currentWord.length;
           const wordTime = currentTime - (lastKeyPressTime || currentTime);
         }
         
-        // Count remaining untyped characters as mistakes
         const remainingChars = currentWord.slice(currentInput.length);
         remainingChars.split('').forEach(char => {
           newLetterMistakes[char] = (newLetterMistakes[char] || 0) + 1;
         });
         newTotalMistakes += remainingChars.length;
         
-        // Complete the game if it's the last word
         if (wordIndex === words.length - 1) {
           newCompletedInputs.push(currentInput);
           newIsGameComplete = true;
-          // Update performance data with current values
           updatePerformanceData(currentInput, currentTime);
         } else {
-          // Move to next word
           newCompletedInputs.push(currentInput);
           newWordIndex = wordIndex + 1;
           newCurrentInput = '';
-          // Update performance data with current values
           updatePerformanceData(currentInput, currentTime);
         }
       } else {
-        // Don't allow typing more characters than the word length
         if (currentInput.length >= currentWord.length) {
           return;
         }
 
         // Record timing for the character
         if (lastKeyPressTime) {
+          const charTimeDiff = currentTime - lastKeyPressTime;
           const timings = newLetterTimings[e.key] || [];
-          newLetterTimings[e.key] = [...timings, currentTime - lastKeyPressTime];
+          newLetterTimings[e.key] = [...timings, charTimeDiff];
+
+          // Record bigram timing if we have a previous character
+          if (currentInput.length > 0) {
+            const prevChar = currentInput[currentInput.length - 1];
+            const bigram = prevChar + e.key;
+            const bigramTimings = newBigramTimings[bigram] || [];
+            newBigramTimings[bigram] = [...bigramTimings, charTimeDiff];
+          }
         }
 
         newCurrentInput = currentInput + e.key;
         newTotalKeystrokes += 1;
         
-        // Check for mistakes
         const expectedChar = currentWord[currentInput.length];
         if (expectedChar !== undefined && expectedChar !== e.key) {
           newLetterMistakes[expectedChar] = (newLetterMistakes[expectedChar] || 0) + 1;
           newTotalMistakes += 1;
         }
 
-        // End game if on last word and typed enough characters
         if (wordIndex === words.length - 1 && newCurrentInput.length >= currentWord.length) {
           newCompletedInputs.push(newCurrentInput);
           newIsGameComplete = true;
-          // Update performance data with new values
           updatePerformanceData(newCurrentInput, currentTime);
         } else {
-          // Update performance data with new input
           updatePerformanceData(newCurrentInput, currentTime);
         }
       }
 
-      // Batch all state updates
       setStartTime(newStartTime);
       setLetterTimings(newLetterTimings);
+      setBigramTimings(newBigramTimings);
       setLetterMistakes(newLetterMistakes);
       setTotalMistakes(newTotalMistakes);
       setTotalKeystrokes(newTotalKeystrokes);
@@ -521,20 +380,13 @@ const TypingGame: React.FC = () => {
       setIsGameComplete(newIsGameComplete);
       setTimingHistory(newTimingHistory);
 
-      // console.log(newCurrentInput);
-      // performanceData.forEach(point => {
-      //   console.log(point.wpm);
-      // });
-      // console.log("--------------------------------");
-
     } else if (e.key === 'Backspace') {
       e.preventDefault();
       const newInput = currentInput.slice(0, -1);
       updatePerformanceData(newInput, performance.now());
       setCurrentInput(newInput);
     }
-  }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, isGameComplete, updatePerformanceData, completedInputs, letterTimings, letterMistakes, totalMistakes, totalKeystrokes]);
-
+  }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, isGameComplete, updatePerformanceData, completedInputs, letterTimings, bigramTimings, letterMistakes, totalMistakes, totalKeystrokes]);
 
   // Set up keyboard listener
   useEffect(() => {
@@ -647,7 +499,7 @@ const TypingGame: React.FC = () => {
   };
 
   const renderWord = (word: string, index: number) => {
-    const { letters, bigrams } = getTargetedPatterns();
+    const { letters, bigrams } = getTargetedPatterns(timingHistory);
     
     // Pre-calculate which characters are part of bigrams
     const bigramIndices = new Set<number>();
@@ -734,7 +586,6 @@ const TypingGame: React.FC = () => {
     );
   };
   
-
   const stats = calculateStats();
 
   // Add new functions for overall analysis
@@ -812,220 +663,53 @@ const TypingGame: React.FC = () => {
 
   return (
     <div className="typing-game">
-      {timingHistory.letters && Object.keys(timingHistory.letters).length > 0 && (
-        <div className="targeting-info">
-          <div className="targeting-section">
-            <h4>Targeting slow letters:</h4>
-            <div className="targeted-items">
-              {getTargetedPatterns().letters.map(letter => (
-                <span key={letter} className="targeted-item">
-                  {letter === ' ' ? '␣' : letter}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="targeting-section">
-            <h4>Targeting slow combinations:</h4>
-            <div className="targeted-items">
-              {getTargetedPatterns().bigrams.map(bigram => (
-                <span key={bigram} className="targeted-item">
-                  {bigram}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
       {!isGameComplete ? (
-        <div className="game-container">
-          <div className="words-display">
-            {words.map((word, idx) => (
-              <span key={idx}>
-                {renderWord(word, idx)}
-              </span>
-            ))}
-          </div>
-          <div className="typing-prompt">
-            Start typing to begin
-          </div>
-        </div>
+        <GameScreen
+          words={words}
+          wordIndex={wordIndex}
+          currentInput={currentInput}
+          completedInputs={completedInputs}
+          timingHistory={timingHistory}
+        />
       ) : (
-        <div className="results-container">
-          <h2>Results</h2>
-          <div className="overall-stats">
-            <div className="stat-box">
-              <h3>Speed</h3>
-              <div className="stat-value">{performanceData[performanceData.length - 1].wpm} WPM</div>
-            </div>
-            <div className="stat-box">
-              <h3>Accuracy</h3>
-              <div className="stat-value">{performanceData[performanceData.length - 1].accuracy}%</div>
-            </div>
-          </div>
-          
-          {(timingHistory.historicalPerformance.length > 1) && (
-          <div className="stats-tabs">
-            <div className="tab-row">
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={showingOverall}
-                  onChange={() => setShowingOverall(!showingOverall)}
-                />
-                <span className="toggle-slider"></span>
-                <span className="toggle-label">{showingOverall ? 'Overall' : 'Current'}</span>
-              </label>
-            </div>
-          </div>
-          )}
-          <div className="performance-graph">
-            <h3>{timingHistory.historicalPerformance.length > 1 && showingOverall ? 'Overall' : 'Current'} Performance</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart 
-                data={timingHistory.historicalPerformance.length > 1 && showingOverall ? timingHistory.historicalPerformance : performanceData} 
-                margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-              >
-                <CartesianGrid vertical={true} horizontal={false} />
-                <XAxis 
-                  dataKey={showingOverall ? undefined : "wordIndex"}
-                  label={{ 
-                    value: showingOverall ? 'Games Completed' : 'Words Typed', 
-                    position: 'bottom' 
-                  }}
-                  interval={1}
-                  tickFormatter={(value, index) => showingOverall ? `${index + 1}` : `${value + 1}`}
-                />
-                <YAxis 
-                  yAxisId="left"
-                  domain={[0, Math.ceil(Math.max(
-                    ...(showingOverall ? 
-                      timingHistory.historicalPerformance.map(d => d.wpm) : 
-                      performanceData.map(d => d.wpm)
-                    )) / 10) * 10]} 
-                  ticks={Array.from(
-                    { length: Math.floor(Math.ceil(Math.max(
-                      ...(showingOverall ? 
-                        timingHistory.historicalPerformance.map(d => d.wpm) : 
-                        performanceData.map(d => d.wpm)
-                      )) / 10) * 10 / 10) + 1 }, 
-                    (_, i) => i * 10
-                  )}
-                  label={{ value: 'WPM', angle: -90, position: 'left' }}
-                />
-                <YAxis 
-                  yAxisId="right" 
-                  orientation="right"
-                  domain={[0, 100]}
-                  label={{ value: 'Accuracy %', angle: 90, position: 'right' }}
-                />
-                <Tooltip 
-                  formatter={(value: number, name: string) => [
-                    `${value}${name === 'Accuracy' ? '%' : ' WPM'}`,
-                    name
-                  ]}
-                  labelFormatter={(label: any) => 
-                    showingOverall ? `Game ${Number(label) + 1}` : `Word ${Number(label) + 1}`
-                  }
-                />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey={showingOverall ? "wpm" : "wpm"}
-                  stroke="#2196f3"
-                  strokeWidth={2}
-                  name="WPM"
-                  dot={showingOverall}
-                  isAnimationActive={false}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey={showingOverall ? "accuracy" : "accuracy"}
-                  stroke="#4caf50"
-                  strokeWidth={2}
-                  name="Accuracy"
-                  dot={showingOverall}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="stats-tabs">
-            <div className="tab-row">
-              <button 
-                className={`tab-button ${selectedTab === 'letters' ? 'active' : ''}`}
-                onClick={() => setSelectedTab('letters')}
-              >
-                Letter Analysis
-              </button>
-            </div>
-            <div className="tab-row">
-              <button 
-                className={`tab-button ${selectedTab === 'bigrams' ? 'active' : ''}`}
-                onClick={() => setSelectedTab('bigrams')}
-              >
-                Letter Combinations
-              </button>
-            </div>
-          </div>
-          {selectedTab === 'letters' && (
-            <div className="letter-stats">
-              <h3>{showingOverall ? 'Overall' : 'Current'} Letter Analysis</h3>
-              <div className="stats-grid">
-                {(showingOverall ? calculateOverallLetterStats() : calculateLetterStats()).map(({ letter, averageTime, occurrences }) => (
-                  <div key={letter} className="stat-item">
-                    <span className={`letter ${calculateLetterStats().some((stat: LetterTiming) => stat.letter === letter) ? '' : 'seen'}`}>
-                      {letter === ' ' ? '␣' : letter}
-                    </span>
-                    <span className="time">{averageTime.toFixed(0)}ms</span>
-                    <span className="occurrences">
-                      {occurrences} {'times'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {selectedTab === 'bigrams' && (
-            <div className="letter-stats">
-              <h3>{showingOverall ? 'Overall' : 'Current'} Letter Combinations</h3>
-              <div className="stats-grid">
-                {(showingOverall ? calculateOverallBigramStats() : calculateBigramStats()).map(({ bigram, averageTime, occurrences }) => (
-                  <div key={bigram} className="stat-item">
-                    <span className={`letter ${calculateBigramStats().some((stat: BigramTiming) => stat.bigram === bigram) ? '' : 'seen'}`}>
-                      {bigram}
-                    </span>
-                    <span className="time">{averageTime}ms</span>
-                    <span className="occurrences">
-                      {occurrences} {'times'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="button-row">
-            <button 
-              onClick={() => {
-                setTimingHistory({ 
-                  letters: {}, 
-                  bigrams: {}, 
-                  historicalLetters: {},
-                  historicalBigrams: {},
-                  historicalPerformance: []
-                });
-                resetGame();
-              }} 
-              className="delete-button"
-            >
-              Delete Data
-            </button>
-
-            <button onClick={resetGame} className="reset-button">
-              Try Again
-            </button>
-          </div>
-        </div>
+        <ResultsScreen
+          performanceData={performanceData}
+          timingHistory={timingHistory}
+          showingOverall={showingOverall}
+          selectedTab={selectedTab}
+          words={words}
+          wordIndex={wordIndex}
+          completedInputs={completedInputs}
+          currentInput={currentInput}
+          letterTimings={letterTimings}
+          bigramTimings={bigramTimings}
+          onTabChange={setSelectedTab}
+          onToggleOverall={() => setShowingOverall(!showingOverall)}
+          onReset={resetGame}
+          onDeleteData={() => {
+            const emptyHistory = { 
+              letters: {}, 
+              bigrams: {}, 
+              historicalLetters: {},
+              historicalBigrams: {},
+              historicalPerformance: []
+            };
+            setTimingHistory(emptyHistory);
+            setWords(generateWeightedWords(WORDS_COUNT, emptyHistory));
+            setCurrentInput('');
+            setWordIndex(0);
+            setStartTime(null);
+            setLetterTimings({});
+            setBigramTimings({});
+            setLetterMistakes({});
+            setTotalKeystrokes(0);
+            setTotalMistakes(0);
+            setIsGameComplete(false);
+            setLastKeyPressTime(null);
+            setCompletedInputs([]);
+            setPerformanceData([]);
+          }}
+        />
       )}
     </div>
   );
