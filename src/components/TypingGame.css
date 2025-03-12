@@ -183,3 +183,66 @@
   color: #666;
   min-width: 60px;
 }
+
+.targeted-word {
+  font-weight: bold;
+}
+
+.game-controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+  justify-content: center;
+}
+
+.strict-mode-toggle,
+.hide-targets-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.strict-mode-toggle input[type="checkbox"],
+.hide-targets-toggle input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.toggle-label {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.strict-mode-toggle .toggle-label {
+  font-size: 0.9em;
+}
+
+.stat-item .occurrences {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.stat-item .mistypes {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.stat-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stat-item .occurrences {
+  font-size: 0.9rem;
+  color: var(--text-light);
+}
+
+.stat-item .time {
+  margin: 0 1rem;
+  color: var(--primary);
+  font-weight: 500;
+}

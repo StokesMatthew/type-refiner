@@ -37,6 +37,7 @@ interface GamePerformance {
 }
 
 const WORDS_COUNT = 20;
+const STORAGE_KEY = 'type-refiner-data';
 
 const TypingGame: React.FC = () => {
   const [words, setWords] = useState<string[]>([]);
@@ -45,6 +46,9 @@ const TypingGame: React.FC = () => {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [letterTimings, setLetterTimings] = useState<{ [key: string]: number[] }>({});
   const [bigramTimings, setBigramTimings] = useState<{ [key: string]: number[] }>({});
+  const [wordTimings, setWordTimings] = useState<{ [key: string]: number[] }>({});
+  const [wordStartTimes, setWordStartTimes] = useState<{ [key: string]: { startTime: number; charsTyped: number } }>({});
+  const [wordMistypes, setWordMistypes] = useState<{ [key: string]: number }>({});
   const [letterMistakes, setLetterMistakes] = useState<{ [key: string]: number }>({});
   const [totalKeystrokes, setTotalKeystrokes] = useState(0);
   const [totalMistakes, setTotalMistakes] = useState(0);
@@ -52,15 +56,37 @@ const TypingGame: React.FC = () => {
   const [lastKeyPressTime, setLastKeyPressTime] = useState<number | null>(null);
   const [completedInputs, setCompletedInputs] = useState<string[]>([]);
   const [performanceData, setPerformanceData] = useState<PerformancePoint[]>([]);
-  const [selectedTab, setSelectedTab] = useState<'letters' | 'bigrams'>('letters');
+  const [selectedTab, setSelectedTab] = useState<'letters' | 'bigrams' | 'words'>('letters');
   const [showingOverall, setShowingOverall] = useState(false);
+  const [strictMode, setStrictMode] = useState(false);
+  const [hideTargets, setHideTargets] = useState(false);
   const [timingHistory, setTimingHistory] = useState<TimingHistory>({ 
     letters: {}, 
     bigrams: {}, 
+    words: {},
     historicalLetters: {},
     historicalBigrams: {},
-    historicalPerformance: []
+    historicalWords: {},
+    historicalPerformance: [],
+    wordMistypes: {}
   });
+
+  // Load saved data from localStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+      setTimingHistory(parsedData);
+      setWords(generateWeightedWords(WORDS_COUNT, parsedData));
+    } else {
+      setWords(generateWeightedWords(WORDS_COUNT, timingHistory));
+    }
+  }, []); // Only run once at mount
+
+  // Save data to localStorage whenever timing history changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(timingHistory));
+  }, [timingHistory]);
 
   // Calculate letter statistics
   const calculateLetterStats = (): LetterTiming[] => {
@@ -139,8 +165,35 @@ const TypingGame: React.FC = () => {
       const bigramStats = calculateBigramStats();
       
       const newLetterTimings: { [key: string]: number } = {};
+      const newBigramTimings: { [key: string]: number } = {};
+      const newWordTimings: { [key: string]: number } = {};
       const newHistoricalLetters = { ...timingHistory.historicalLetters };
+      const newHistoricalBigrams = { ...timingHistory.historicalBigrams };
+      const newHistoricalWords = { ...timingHistory.historicalWords };
+      const newWordMistypes = { ...timingHistory.wordMistypes };  // Start with existing mistypes
       
+      // Process word timings and mistypes
+      words.forEach((word, idx) => {
+        const input = completedInputs[idx];
+        if (input === word) { // Only process correctly typed words
+          const times = wordTimings[word] || [];
+          if (times.length > 0) {
+            // Store all timings, not just the last one
+            newWordTimings[word] = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+            
+            if (!newHistoricalWords[word]) {
+              newHistoricalWords[word] = [];
+            }
+            // Add all timings to historical data, just like letters and bigrams
+            newHistoricalWords[word].push(...times);
+          }
+        }
+        // Always update mistypes, regardless of whether the word was completed correctly
+        if (wordMistypes[word]) {
+          newWordMistypes[word] = (newWordMistypes[word] || 0) + wordMistypes[word];
+        }
+      });
+
       letterStats.forEach(({ letter, averageTime }) => {
         newLetterTimings[letter] = averageTime;
         
@@ -159,9 +212,6 @@ const TypingGame: React.FC = () => {
         }
         newHistoricalLetters[letter] = [...newHistoricalLetters[letter], ...currentTimings];
       });
-      
-      const newBigramTimings: { [key: string]: number } = {};
-      const newHistoricalBigrams = { ...timingHistory.historicalBigrams };
       
       bigramStats.forEach(({ bigram, averageTime }) => {
         newBigramTimings[bigram] = averageTime;
@@ -190,17 +240,15 @@ const TypingGame: React.FC = () => {
       setTimingHistory({
         letters: newLetterTimings,
         bigrams: newBigramTimings,
+        words: newWordTimings,
         historicalLetters: newHistoricalLetters,
         historicalBigrams: newHistoricalBigrams,
-        historicalPerformance: [...timingHistory.historicalPerformance, { wpm: performanceData[performanceData.length - 1].wpm, accuracy: performanceData[performanceData.length - 1].accuracy }]
+        historicalWords: newHistoricalWords,
+        historicalPerformance: [...timingHistory.historicalPerformance, { wpm: performanceData[performanceData.length - 1].wpm, accuracy: performanceData[performanceData.length - 1].accuracy }],
+        wordMistypes: newWordMistypes  // Use the updated mistypes
       });
     }
   }, [isGameComplete]);
-
-  // Initial word generation
-  useEffect(() => {
-    setWords(generateWeightedWords(WORDS_COUNT, timingHistory));
-  }, []); // Only run once at mount
 
   const resetGame = useCallback(() => {
     setWords(generateWeightedWords(WORDS_COUNT, timingHistory));
@@ -209,6 +257,9 @@ const TypingGame: React.FC = () => {
     setStartTime(null);
     setLetterTimings({});
     setBigramTimings({});
+    setWordTimings({});
+    setWordStartTimes({});
+    setWordMistypes({});  // Reset word mistypes for new game
     setLetterMistakes({});
     setTotalKeystrokes(0);
     setTotalMistakes(0);
@@ -217,13 +268,6 @@ const TypingGame: React.FC = () => {
     setCompletedInputs([]);
     setPerformanceData([]);
   }, [timingHistory]);
-
-  useEffect(() => {
-    performanceData.forEach(point => {
-      console.log(point.wpm);
-    });
-    console.log("--------------------------------");
-  }, [performanceData]);
 
   const updatePerformanceData = useCallback((overrideInput: string, currentTime: number) => {
     if (!startTime) return;
@@ -293,6 +337,7 @@ const TypingGame: React.FC = () => {
       let newStartTime = startTime;
       let newLetterTimings = {...letterTimings};
       let newBigramTimings = {...bigramTimings};
+      let newWordTimings = {...wordTimings};
       let newLetterMistakes = {...letterMistakes};
       let newTotalMistakes = totalMistakes;
       let newTotalKeystrokes = totalKeystrokes;
@@ -301,16 +346,45 @@ const TypingGame: React.FC = () => {
       let newWordIndex = wordIndex;
       let newCurrentInput = currentInput;
       let newIsGameComplete = isGameComplete;
-      let newTimingHistory = {...timingHistory};
+      let newWordStartTimes = {...wordStartTimes};
+      let newWordMistypes = {...wordMistypes};
 
       if (!startTime) {
         newStartTime = currentTime;
       }
 
+      // Initialize word timing if this is the first character
+      if (!newWordStartTimes[currentWord]) {
+        newWordStartTimes[currentWord] = { startTime: currentTime, charsTyped: 0 };
+      }
+
       if (e.key === ' ') {
+        if (currentInput.length === 0) {
+          // Don't allow skipping if no letters typed
+          return;
+        }
+
         if (currentInput.length > 0) {
-          const wordLength = currentWord.length;
-          const wordTime = currentTime - (lastKeyPressTime || currentTime);
+          // Record word timing and mistypes
+          const wordStartData = newWordStartTimes[currentWord];
+          if (wordStartData) {
+            const totalTime = currentTime - wordStartData.startTime;
+            // Normalize time based on word length instead of chars typed
+            const normalizedTime = Math.round(totalTime / currentWord.length); // Time per character based on word length
+            const times = newWordTimings[currentWord] || [];
+            newWordTimings[currentWord] = [...times, normalizedTime];
+          }
+
+          // Count mistypes for skipped characters
+          const remainingChars = currentWord.slice(currentInput.length);
+          if (remainingChars.length > 0) {
+            newWordMistypes[currentWord] = (newWordMistypes[currentWord] || 0) + remainingChars.length;
+          }
+
+          // In strict mode, only allow moving to next word if current word is correct
+          if (strictMode && currentInput !== currentWord) {
+            return;
+          }
         }
         
         const remainingChars = currentWord.slice(currentInput.length);
@@ -326,12 +400,22 @@ const TypingGame: React.FC = () => {
         } else {
           newCompletedInputs.push(currentInput);
           newWordIndex = wordIndex + 1;
+          // Initialize timing for next word immediately when we move to it
+          const nextWord = words[wordIndex + 1];
+          if (nextWord) {
+            newWordStartTimes[nextWord] = { startTime: currentTime, charsTyped: 0 };
+          }
           newCurrentInput = '';
           updatePerformanceData(currentInput, currentTime);
         }
       } else {
         if (currentInput.length >= currentWord.length) {
           return;
+        }
+
+        // Update chars typed for word timing
+        if (newWordStartTimes[currentWord]) {
+          newWordStartTimes[currentWord].charsTyped = currentInput.length + 1;
         }
 
         // Record timing for the character
@@ -356,6 +440,8 @@ const TypingGame: React.FC = () => {
         if (expectedChar !== undefined && expectedChar !== e.key) {
           newLetterMistakes[expectedChar] = (newLetterMistakes[expectedChar] || 0) + 1;
           newTotalMistakes += 1;
+          // Track word mistypes
+          newWordMistypes[currentWord] = (newWordMistypes[currentWord] || 0) + 1;
         }
 
         if (wordIndex === words.length - 1 && newCurrentInput.length >= currentWord.length) {
@@ -370,6 +456,7 @@ const TypingGame: React.FC = () => {
       setStartTime(newStartTime);
       setLetterTimings(newLetterTimings);
       setBigramTimings(newBigramTimings);
+      setWordTimings(newWordTimings);
       setLetterMistakes(newLetterMistakes);
       setTotalMistakes(newTotalMistakes);
       setTotalKeystrokes(newTotalKeystrokes);
@@ -378,15 +465,15 @@ const TypingGame: React.FC = () => {
       setWordIndex(newWordIndex);
       setCurrentInput(newCurrentInput);
       setIsGameComplete(newIsGameComplete);
-      setTimingHistory(newTimingHistory);
-
+      setWordStartTimes(newWordStartTimes);
+      setWordMistypes(newWordMistypes);
     } else if (e.key === 'Backspace') {
       e.preventDefault();
       const newInput = currentInput.slice(0, -1);
       updatePerformanceData(newInput, performance.now());
       setCurrentInput(newInput);
     }
-  }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, isGameComplete, updatePerformanceData, completedInputs, letterTimings, bigramTimings, letterMistakes, totalMistakes, totalKeystrokes]);
+  }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, strictMode, letterTimings, bigramTimings, wordTimings, letterMistakes, totalMistakes, totalKeystrokes, completedInputs, updatePerformanceData]);
 
   // Set up keyboard listener
   useEffect(() => {
@@ -661,6 +748,133 @@ const TypingGame: React.FC = () => {
     return stats.sort((a, b) => b.averageTime - a.averageTime);
   };
 
+  const calculateWordStats = (): { word: string; averageTime: number; occurrences: number; mistypes: number; }[] => {
+    const stats: { word: string; averageTime: number; occurrences: number; mistypes: number; }[] = [];
+    
+    // Process all words that were attempted
+    words.forEach((word, wordIdx) => {
+      const input = completedInputs[wordIdx];
+      const times = wordTimings[word] || [];
+      const mistypeCount = wordMistypes[word] || 0;
+      
+      // Include all words that were attempted (have mistypes) or completed (have times)
+      stats.push({
+        word,
+        averageTime: times.length > 0 ? 
+          Math.round(times.reduce((a, b) => a + b, 0) / times.length) :
+          0,
+        occurrences: times.length, // This represents successful completions
+        mistypes: mistypeCount
+      });
+    });
+
+    return stats.sort((a, b) => {
+      // Sort by mistypes first
+      if (b.mistypes !== a.mistypes) {
+        return b.mistypes - a.mistypes;
+      }
+      // If mistypes are equal, sort by time
+      return b.averageTime - a.averageTime;
+    });
+  };
+
+  const calculateOverallWordStats = (): { word: string; averageTime: number; occurrences: number; mistypes: number; }[] => {
+    const wordStats = calculateWordStats(); // Get current game stats
+    const stats: { word: string; averageTime: number; occurrences: number; mistypes: number; }[] = [];
+    
+    // If game is not complete, only show current game stats
+    if (!isGameComplete) {
+      return wordStats;
+    }
+    
+    // Track all words we've seen
+    const processedWords = new Set<string>();
+    
+    // First, process current game stats
+    wordStats.forEach(stat => {
+      processedWords.add(stat.word);
+      stats.push({
+        word: stat.word,
+        averageTime: stat.averageTime,
+        occurrences: stat.occurrences,
+        mistypes: stat.mistypes
+      });
+    });
+    
+    // Then process historical data
+    Object.entries(timingHistory.historicalWords).forEach(([word, times]) => {
+      if (processedWords.has(word)) {
+        // Update existing stats
+        const existingStats = stats.find(s => s.word === word)!;
+        
+        // Calculate average time from all historical timings
+        const allTimes = [...times];
+        if (existingStats.averageTime > 0) {
+          // Add current game timings
+          const currentTimes = wordTimings[word] || [];
+          allTimes.push(...currentTimes);
+        }
+        
+        existingStats.averageTime = allTimes.length > 0 ?
+          Math.round(allTimes.reduce((a, b) => a + b, 0) / allTimes.length) :
+          0;
+        existingStats.occurrences += times.length;
+        existingStats.mistypes += timingHistory.wordMistypes[word] || 0;
+      } else {
+        // Add new historical stats
+        processedWords.add(word);
+        stats.push({
+          word,
+          averageTime: times.length > 0 ?
+            Math.round(times.reduce((a, b) => a + b, 0) / times.length) :
+            0,
+          occurrences: times.length,
+          mistypes: timingHistory.wordMistypes[word] || 0
+        });
+      }
+    });
+    
+    return stats.sort((a, b) => {
+      // Sort by mistypes first
+      if (b.mistypes !== a.mistypes) {
+        return b.mistypes - a.mistypes;
+      }
+      // If mistypes are equal, sort by time
+      return b.averageTime - a.averageTime;
+    });
+  };
+
+  const handleDeleteData = () => {
+    if (window.confirm('Are you sure you want to delete all your typing data? This action cannot be undone.')) {
+      const emptyHistory = { 
+        letters: {}, 
+        bigrams: {}, 
+        words: {},
+        historicalLetters: {},
+        historicalBigrams: {},
+        historicalWords: {},
+        historicalPerformance: [],
+        wordMistypes: {}
+      };
+      localStorage.removeItem(STORAGE_KEY);
+      setTimingHistory(emptyHistory);
+      setWords(generateWeightedWords(WORDS_COUNT, emptyHistory));
+      setCurrentInput('');
+      setWordIndex(0);
+      setStartTime(null);
+      setLetterTimings({});
+      setBigramTimings({});
+      setWordTimings({});
+      setLetterMistakes({});
+      setTotalKeystrokes(0);
+      setTotalMistakes(0);
+      setIsGameComplete(false);
+      setLastKeyPressTime(null);
+      setCompletedInputs([]);
+      setPerformanceData([]);
+    }
+  };
+
   return (
     <div className="typing-game">
       {!isGameComplete ? (
@@ -670,6 +884,10 @@ const TypingGame: React.FC = () => {
           currentInput={currentInput}
           completedInputs={completedInputs}
           timingHistory={timingHistory}
+          strictMode={strictMode}
+          hideTargets={hideTargets}
+          onToggleStrictMode={() => setStrictMode(!strictMode)}
+          onToggleHideTargets={() => setHideTargets(!hideTargets)}
         />
       ) : (
         <ResultsScreen
@@ -683,32 +901,13 @@ const TypingGame: React.FC = () => {
           currentInput={currentInput}
           letterTimings={letterTimings}
           bigramTimings={bigramTimings}
+          wordTimings={wordTimings}
           onTabChange={setSelectedTab}
           onToggleOverall={() => setShowingOverall(!showingOverall)}
           onReset={resetGame}
-          onDeleteData={() => {
-            const emptyHistory = { 
-              letters: {}, 
-              bigrams: {}, 
-              historicalLetters: {},
-              historicalBigrams: {},
-              historicalPerformance: []
-            };
-            setTimingHistory(emptyHistory);
-            setWords(generateWeightedWords(WORDS_COUNT, emptyHistory));
-            setCurrentInput('');
-            setWordIndex(0);
-            setStartTime(null);
-            setLetterTimings({});
-            setBigramTimings({});
-            setLetterMistakes({});
-            setTotalKeystrokes(0);
-            setTotalMistakes(0);
-            setIsGameComplete(false);
-            setLastKeyPressTime(null);
-            setCompletedInputs([]);
-            setPerformanceData([]);
-          }}
+          onDeleteData={handleDeleteData}
+          calculateWordStats={calculateWordStats}
+          calculateOverallWordStats={calculateOverallWordStats}
         />
       )}
     </div>

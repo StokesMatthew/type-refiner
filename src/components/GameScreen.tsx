@@ -8,6 +8,10 @@ interface GameScreenProps {
   currentInput: string;
   completedInputs: string[];
   timingHistory: TimingHistory;
+  strictMode: boolean;
+  hideTargets: boolean;
+  onToggleStrictMode: () => void;
+  onToggleHideTargets: () => void;
 }
 
 const GameScreen: React.FC<GameScreenProps> = ({
@@ -15,10 +19,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
   wordIndex,
   currentInput,
   completedInputs,
-  timingHistory
+  timingHistory,
+  strictMode,
+  hideTargets,
+  onToggleStrictMode,
+  onToggleHideTargets
 }) => {
   const renderWord = (word: string, index: number) => {
-    const { letters, bigrams } = getTargetedPatterns(timingHistory);
+    const { letters, bigrams, words: targetWords } = getTargetedPatterns(timingHistory);
     
     const bigramIndices = new Set<number>();
     for (let i = 0; i < word.length - 1; i++) {
@@ -33,6 +41,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       let className = '';
       const isTargetedLetter = letters.includes(char);
       const isInTargetedBigram = bigramIndices.has(charIndex);
+      const isInTargetedWord = targetWords.includes(word);
       
       if (index < wordIndex) {
         const typedInput = completedInputs[index];
@@ -47,11 +56,16 @@ const GameScreen: React.FC<GameScreenProps> = ({
         className = 'untyped-char';
       }
       
-      if (isTargetedLetter) {
-        className += ' targeted-pattern';
-      }
-      if (isInTargetedBigram) {
-        className += ' targeted-pattern bigram';
+      if (!hideTargets) {
+        if (isTargetedLetter) {
+          className += ' targeted-pattern';
+        }
+        if (isInTargetedBigram) {
+          className += ' targeted-pattern bigram';
+        }
+        if (isInTargetedWord) {
+          className += ' targeted-word';
+        }
       }
       
       return (
@@ -72,6 +86,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
     
     if (index === wordIndex) {
       const cursorOffset = 0.55 * currentInput.length;
+
       const cursorStyle = {
         '--cursor-offset': `${cursorOffset}em`
       } as React.CSSProperties;
@@ -122,6 +137,16 @@ const GameScreen: React.FC<GameScreenProps> = ({
               ))}
             </div>
           </div>
+          <div className="targeting-section">
+            <h4>Targeting slow words:</h4>
+            <div className="targeted-items">
+              {getTargetedPatterns(timingHistory).words.map(word => (
+                <span key={word} className="targeted-item">
+                  {word}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       )}
       <div className="game-container">
@@ -134,6 +159,24 @@ const GameScreen: React.FC<GameScreenProps> = ({
         </div>
         <div className="typing-prompt">
           Start typing to begin
+        </div>
+        <div className="game-controls">
+          <label className="strict-mode-toggle">
+            <input
+              type="checkbox"
+              checked={strictMode}
+              onChange={onToggleStrictMode}
+            />
+            <span className="toggle-label">Strict Mode</span>
+          </label>
+          <label className="hide-targets-toggle">
+            <input
+              type="checkbox"
+              checked={hideTargets}
+              onChange={onToggleHideTargets}
+            />
+            <span className="toggle-label">Hide Targets</span>
+          </label>
         </div>
       </div>
     </>

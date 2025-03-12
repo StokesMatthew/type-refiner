@@ -51,6 +51,9 @@ export const calculateBigramStats = (
     
     if (!input || input.length < 2) return;
     
+    // Track bigrams we've seen in this word to average their timings
+    const wordBigrams = new Map<string, { totalTime: number, count: number }>();
+    
     for (let charIdx = 0; charIdx < word.length - 1; charIdx++) {
       if (input[charIdx] === word[charIdx] && 
           input[charIdx + 1] === word[charIdx + 1]) {
@@ -58,13 +61,23 @@ export const calculateBigramStats = (
         const timings = bigramTimings[bigram] || [];
         
         if (timings.length > 0) {
-          const stats = bigramStats.get(bigram) || { totalTime: 0, count: 0 };
-          stats.totalTime += timings.reduce((a, b) => a + b, 0);
-          stats.count += 1; // Count each successful bigram typing once
-          bigramStats.set(bigram, stats);
+          // Add to word-specific bigram stats
+          const stats = wordBigrams.get(bigram) || { totalTime: 0, count: 0 };
+          stats.totalTime += timings[stats.count];
+          stats.count += 1;
+          wordBigrams.set(bigram, stats);
         }
       }
     }
+    
+    // Average the timings for each bigram in this word and add to overall stats
+    wordBigrams.forEach((wordStats, bigram) => {
+      const avgTimeForWord = wordStats.totalTime / wordStats.count;
+      const stats = bigramStats.get(bigram) || { totalTime: 0, count: 0 };
+      stats.totalTime += avgTimeForWord;
+      stats.count += 1; // Count each word's average as one occurrence
+      bigramStats.set(bigram, stats);
+    });
   });
 
   return Array.from(bigramStats.entries())
@@ -76,108 +89,124 @@ export const calculateBigramStats = (
     .sort((a, b) => b.averageTime - a.averageTime);
 };
 
-export const getTargetedPatterns = (timingHistory: TimingHistory): { letters: string[], bigrams: string[] } => {
-  const letters = Object.entries(timingHistory.letters)
-    .sort(([,a], [,b]) => b - a)
-    .slice(0, 5)
-    .map(([letter]) => letter);
+export const getTargetedPatterns = (timingHistory: TimingHistory) => {
+  const letters: string[] = [];
+  const bigrams: string[] = [];
+  const words: string[] = [];
 
-  // Calculate average times from historical data
-  const bigramAverages = Object.entries(timingHistory.historicalBigrams).map(([bigram, times]) => ({
-    bigram,
-    averageTime: times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0
-  }));
+  // Get letters with highest average time
+  const letterEntries = Object.entries(timingHistory.historicalLetters);
+  if (letterEntries.length > 0) {
+    const letterStats = letterEntries.map(([letter, times]) => ({
+      letter,
+      averageTime: times.reduce((a, b) => a + b, 0) / times.length
+    }));
+    letterStats.sort((a, b) => b.averageTime - a.averageTime);
+    letters.push(...letterStats.slice(0, 5).map(stat => stat.letter));
+  }
 
-  const bigrams = bigramAverages
-    .sort((a, b) => b.averageTime - a.averageTime)
-    .slice(0, 5)
-    .map(({ bigram }) => bigram);
+  // Get bigrams with highest average time
+  const bigramEntries = Object.entries(timingHistory.historicalBigrams);
+  if (bigramEntries.length > 0) {
+    const bigramStats = bigramEntries.map(([bigram, times]) => ({
+      bigram,
+      averageTime: times.reduce((a, b) => a + b, 0) / times.length
+    }));
+    bigramStats.sort((a, b) => b.averageTime - a.averageTime);
+    bigrams.push(...bigramStats.slice(0, 5).map(stat => stat.bigram));
+  }
 
-  return { letters, bigrams };
+  // Get words with most mistypes, then by time if tied
+  const wordEntries = Object.entries(timingHistory.historicalWords);
+  if (wordEntries.length > 0) {
+    const wordStats = wordEntries.map(([word, times]) => ({
+      word,
+      averageTime: times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0,
+      mistypes: timingHistory.wordMistypes[word] || 0
+    }));
+    wordStats.sort((a, b) => {
+      // Sort by mistypes first
+      if (b.mistypes !== a.mistypes) {
+        return b.mistypes - a.mistypes;
+      }
+      // If mistypes are equal, sort by time
+      return b.averageTime - a.averageTime;
+    });
+    words.push(...wordStats.slice(0, 5).map(stat => stat.word));
+  }
+
+  return { letters, bigrams, words };
 };
 
 export const generateWeightedWords = (count: number, timingHistory: TimingHistory): string[] => {
-  const { letters, bigrams } = getTargetedPatterns(timingHistory);
+  const { letters, bigrams, words: targetWords } = getTargetedPatterns(timingHistory);
   
-  const wordsWithTargets = new Set<string>();
-  
-  letters.forEach(letter => {
-    dictionary.forEach(word => {
-      if (word.includes(letter)) {
-        wordsWithTargets.add(word);
-      }
-    });
-  });
-  
-  bigrams.forEach(bigram => {
-    dictionary.forEach(word => {
-      if (word.includes(bigram)) {
-        wordsWithTargets.add(word);
-      }
-    });
-  });
-  
+  // Calculate word weights based on mistypes and timing
   const wordWeights = dictionary.map(word => {
     let weight = 1;
     
+    // Get historical timings for this word
+    const historicalTimes = timingHistory.historicalWords[word] || [];
+    const averageTime = historicalTimes.length > 0 ? 
+      historicalTimes.reduce((a, b) => a + b, 0) / historicalTimes.length : 
+      0;
+    
+    // Get mistypes
+    const mistypes = timingHistory.wordMistypes[word] || 0;
+    
+    // Weight based on word timing, multiplied by (mistakes + 1)
+    if (averageTime > 0) {
+      weight += (averageTime / 1000) * (mistypes + 1);
+    }
+    
+    // Add smaller weights for letters and bigrams (just like original)
     for (const char of word) {
-      const letterTime = timingHistory.letters[char];
-      if (letterTime) {
-        weight += letterTime / 1000;
+      if (timingHistory.historicalLetters[char]?.length > 0) {
+        const letterTimes = timingHistory.historicalLetters[char];
+        const avgLetterTime = letterTimes.reduce((a, b) => a + b, 0) / letterTimes.length;
+        // Also multiply letter contribution by (mistakes + 1)
+        weight += (avgLetterTime / 2000) * (mistypes + 1);
       }
     }
     
     for (let i = 0; i < word.length - 1; i++) {
       const bigram = word.slice(i, i + 2);
-      const bigramTime = timingHistory.bigrams[bigram];
-      if (bigramTime) {
-        weight += (bigramTime / 2) / 500;
+      if (timingHistory.historicalBigrams[bigram]?.length > 0) {
+        const bigramTimes = timingHistory.historicalBigrams[bigram];
+        const avgBigramTime = bigramTimes.reduce((a, b) => a + b, 0) / bigramTimes.length;
+        // Also multiply bigram contribution by (mistakes + 1)
+        weight += (avgBigramTime / 4000) * (mistypes + 1);
       }
-    }
-    
-    if (wordsWithTargets.has(word)) {
-      weight *= 2;
     }
     
     return { word, weight };
   });
 
   const sortedWords = wordWeights.sort((a, b) => b.weight - a.weight);
-  const topTenPercent = sortedWords.slice(0, Math.floor(sortedWords.length * 0.1));
-  
   const result: string[] = [];
   
-  letters.forEach(letter => {
-    const wordWithLetter = topTenPercent.find(({ word }) => word.includes(letter));
-    if (wordWithLetter && !result.includes(wordWithLetter.word)) {
-      result.push(wordWithLetter.word);
-    }
-  });
-  
-  bigrams.forEach(bigram => {
-    const wordWithBigram = topTenPercent.find(({ word }) => word.includes(bigram));
-    if (wordWithBigram && !result.includes(wordWithBigram.word)) {
-      result.push(wordWithBigram.word);
-    }
-  });
-  
-  const remainingCount = count - result.length;
-  const weightedCount = Math.floor(remainingCount / 2);
-  
-  for (let i = 0; i < weightedCount; i++) {
-    const word = topTenPercent[i % topTenPercent.length].word;
-    if (!result.includes(word)) {
+  // First add target words (which are already sorted by mistypes then time)
+  targetWords.forEach(word => {
+    if (dictionary.includes(word) && !result.includes(word)) {
       result.push(word);
     }
-  }
+  });
   
+  // Fill remaining slots with weighted words
   while (result.length < count) {
-    const randomWord = dictionary[Math.floor(Math.random() * dictionary.length)];
-    if (!result.includes(randomWord)) {
-      result.push(randomWord);
+    const nextWord = sortedWords.find(({ word }) => !result.includes(word));
+    if (nextWord) {
+      result.push(nextWord.word);
+    } else {
+      // If we run out of weighted words, add random ones
+      const randomWord = dictionary[Math.floor(Math.random() * dictionary.length)];
+      if (!result.includes(randomWord)) {
+        result.push(randomWord);
+      }
     }
   }
   
+  // Shuffle the words to avoid predictable patterns
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [result[i], result[j]] = [result[j], result[i]];

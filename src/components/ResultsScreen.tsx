@@ -7,17 +7,20 @@ interface ResultsScreenProps {
   performanceData: PerformancePoint[];
   timingHistory: TimingHistory;
   showingOverall: boolean;
-  selectedTab: 'letters' | 'bigrams';
+  selectedTab: 'letters' | 'bigrams' | 'words';
   words: string[];
   wordIndex: number;
   completedInputs: string[];
   currentInput: string;
   letterTimings: { [key: string]: number[] };
   bigramTimings: { [key: string]: number[] };
-  onTabChange: (tab: 'letters' | 'bigrams') => void;
+  wordTimings: { [key: string]: number[] };
+  onTabChange: (tab: 'letters' | 'bigrams' | 'words') => void;
   onToggleOverall: () => void;
   onReset: () => void;
   onDeleteData: () => void;
+  calculateWordStats: () => { word: string; averageTime: number; occurrences: number; mistypes: number; }[];
+  calculateOverallWordStats: () => { word: string; averageTime: number; occurrences: number; mistypes: number; }[];
 }
 
 const ResultsScreen: React.FC<ResultsScreenProps> = ({
@@ -31,10 +34,13 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   currentInput,
   letterTimings,
   bigramTimings,
+  wordTimings,
   onTabChange,
   onToggleOverall,
   onReset,
-  onDeleteData
+  onDeleteData,
+  calculateWordStats,
+  calculateOverallWordStats
 }) => {
   // Calculate overall stats
   const calculateOverallStats = () => {
@@ -171,13 +177,17 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
           >
             Letter Analysis
           </button>
-        </div>
-        <div className="tab-row">
           <button 
             className={`tab-button ${selectedTab === 'bigrams' ? 'active' : ''}`}
             onClick={() => onTabChange('bigrams')}
           >
             Bigram Analysis
+          </button>
+          <button 
+            className={`tab-button ${selectedTab === 'words' ? 'active' : ''}`}
+            onClick={() => onTabChange('words')}
+          >
+            Word Analysis
           </button>
         </div>
       </div>
@@ -212,6 +222,29 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
                 <span className="occurrences">
                   {occurrences} {'times'}
                 </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {selectedTab === 'words' && (
+        <div className="letter-stats">
+          <h3>{showingOverall ? 'Overall' : 'Current'} Word Analysis</h3>
+          <div className="stats-grid">
+            {(showingOverall ? calculateOverallWordStats() : calculateWordStats()).map(({ word, averageTime, occurrences, mistypes }) => (
+              <div key={word} className="stat-item">
+                <span className={`letter ${calculateWordStats().some((stat) => stat.word === word) ? '' : 'seen'}`}>
+                  {word}
+                </span>
+                <span className="time">{averageTime}ms</span>
+                <div className="stat-details">
+                  <span className="occurrences">
+                    {occurrences} {'times'}
+                  </span>
+                  <span className="mistypes">
+                    {mistypes} {'mistypes'}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
