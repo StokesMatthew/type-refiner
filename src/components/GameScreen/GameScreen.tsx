@@ -1,6 +1,7 @@
-import React from 'react';
-import { TimingHistory } from './types';
-import { getTargetedPatterns } from './utils';
+import React, { useRef, useEffect, useState } from 'react';
+import { TimingHistory } from '../../types/types';
+import { getTargetedPatterns } from '../../utils/utils';
+import './GameScreen.css';
 
 interface GameScreenProps {
   words: string[];
@@ -25,6 +26,52 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onToggleStrictMode,
   onToggleHideTargets
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [lines, setLines] = useState<React.ReactElement[][]>([]);
+
+  useEffect(() => {
+    const calculateLines = () => {
+      if (!containerRef.current) return;
+
+      const containerWidth = containerRef.current.clientWidth + 10;
+      let currentLine: React.ReactElement[] = [];
+      let currentLineWidth = 0;
+      const newLines: React.ReactElement[][] = [];
+      const charWidth = 15;
+      const spaceWidth = charWidth;
+
+      words.forEach((word, idx) => {
+        const wordElement = (
+          <span key={idx} className="word-wrapper">
+            {renderWord(word, idx)}
+          </span>
+        );
+
+        const wordWidth = word.length * charWidth;
+        const totalWidth = currentLineWidth + wordWidth + (currentLine.length > 0 ? spaceWidth : 0);
+
+        if (totalWidth > containerWidth && currentLine.length > 0) {
+          newLines.push([...currentLine]);
+          currentLine = [wordElement];
+          currentLineWidth = wordWidth;
+        } else {
+          currentLine.push(wordElement);
+          currentLineWidth = totalWidth;
+        }
+      });
+
+      if (currentLine.length > 0) {
+        newLines.push(currentLine);
+      }
+
+      setLines(newLines);
+    };
+
+    calculateLines();
+    window.addEventListener('resize', calculateLines);
+    return () => window.removeEventListener('resize', calculateLines);
+  }, [words, wordIndex, currentInput, completedInputs, hideTargets]);
+
   const renderWord = (word: string, index: number) => {
     const { letters, bigrams, words: targetWords } = getTargetedPatterns(timingHistory);
     
@@ -115,46 +162,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
   return (
     <>
-      {timingHistory.letters && Object.keys(timingHistory.letters).length > 0 && (
-        <div className="targeting-info">
-          <div className="targeting-section">
-            <h4>Targeting slow letters:</h4>
-            <div className="targeted-items">
-              {getTargetedPatterns(timingHistory).letters.map(letter => (
-                <span key={letter} className="targeted-item">
-                  {letter === ' ' ? '␣' : letter}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="targeting-section">
-            <h4>Targeting slow bigrams:</h4>
-            <div className="targeted-items">
-              {getTargetedPatterns(timingHistory).bigrams.map(bigram => (
-                <span key={bigram} className="targeted-item">
-                  {bigram}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="targeting-section">
-            <h4>Targeting slow words:</h4>
-            <div className="targeted-items">
-              {getTargetedPatterns(timingHistory).words.map(word => (
-                <span key={word} className="targeted-item">
-                  {word}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
       <div className="game-container">
-        <div className="words-display">
-          {words.map((word, idx) => (
-            <span key={idx}>
-              {renderWord(word, idx)}
-            </span>
+        <div className="words-display" ref={containerRef}>
+          {lines.map((line, lineIdx) => (
+            <div key={lineIdx} className="words-line">
+              {line}
+            </div>
           ))}
         </div>
         <div className="typing-prompt">
@@ -179,6 +192,41 @@ const GameScreen: React.FC<GameScreenProps> = ({
           </label>
         </div>
       </div>
+
+      {!hideTargets && timingHistory.letters && Object.keys(timingHistory.letters).length > 0 && (
+        <div className="targeting-info">
+          <div className="targeting-section letters">
+            <h4>Targeted Letters:</h4>
+            <div className="targeted-items">
+              {getTargetedPatterns(timingHistory).letters.map(letter => (
+                <span key={letter} className="targeted-item">
+                  {letter === ' ' ? '␣' : letter}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="targeting-section bigrams">
+            <h4>Targeted Bigrams:</h4>
+            <div className="targeted-items">
+              {getTargetedPatterns(timingHistory).bigrams.map(bigram => (
+                <span key={bigram} className="targeted-item">
+                  {bigram}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="targeting-section words">
+            <h4>Targeted Words:</h4>
+            <div className="targeted-items">
+              {getTargetedPatterns(timingHistory).words.map(word => (
+                <span key={word} className="targeted-item">
+                  {word}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

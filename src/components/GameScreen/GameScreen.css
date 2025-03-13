@@ -1,0 +1,182 @@
+.game-container {
+  background: var(--surface-dark);
+  padding: 2rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.words-display {
+  font-size: 1.5rem;
+  line-height: 1.6;
+  color: var(--text);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  min-height: 100px;
+  text-align: left;
+  user-select: none;
+  position: relative;
+  white-space: normal;
+  border: 1px solid var(--border);
+  overflow-x: hidden;
+}
+
+.words-line {
+  display: flex;
+  flex-wrap: nowrap;
+  padding: 0.25rem 0;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 1.5rem;
+  line-height: 1.5;
+  gap: 1ch;
+}
+
+.word-wrapper {
+  display: inline-flex;
+  position: relative;
+  white-space: nowrap;
+}
+
+.word-wrapper::after {
+  content: '';
+  display: inline-block;
+  width: 0;
+}
+
+.typing-prompt {
+  color: var(--text-light);
+  font-size: 1.1rem;
+  margin-top: 1rem;
+}
+
+.correct-char {
+  color: var(--primary-light);
+}
+
+.incorrect-char {
+  color: var(--danger);
+}
+
+.untyped-char {
+  color: var(--text-light);
+}
+
+.current-word {
+  position: relative;
+  display: inline-block;
+}
+
+.cursor {
+  position: absolute;
+  display: inline-block;
+  width: 2px;
+  height: 1.6em;
+  background-color: var(--primary);
+  animation: blink 1s step-end infinite;
+  left: calc(var(--cursor-offset, 0) - 1px);
+  top: 0;
+  transition: left 0.1s ease;
+}
+
+@keyframes blink {
+  from, to { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.targeting-info {
+  background: var(--surface-dark);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+  display: grid;
+  grid-template-areas:
+    "letters bigrams"
+    "words words";
+  width: 100%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.targeting-section {
+  text-align: center;
+  padding: 5px;
+  border-radius: 6px;
+}
+
+.targeting-section.letters { grid-area: letters; }
+.targeting-section.bigrams { grid-area: bigrams; }
+.targeting-section.words { grid-area: words; }
+
+.targeting-section h4 {
+  margin: 0 0 10px 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.targeted-items {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.targeted-item {
+  background: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  color: var(--primary);
+  font-weight: 500;
+  font-family: 'Roboto Mono', monospace;
+  border: 1px solid var(--border);
+}
+
+.targeted-pattern {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-color: var(--primary);
+}
+
+.targeted-pattern.bigram {
+  text-decoration: underline double;
+  text-decoration-color: var(--primary);
+}
+
+.targeted-word {
+  font-weight: bold;
+}
+
+.game-controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+  justify-content: center;
+}
+
+.strict-mode-toggle,
+.hide-targets-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.strict-mode-toggle input[type="checkbox"],
+.hide-targets-toggle input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.toggle-label {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}

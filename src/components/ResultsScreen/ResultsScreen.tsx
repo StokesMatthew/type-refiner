@@ -1,7 +1,8 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TimingHistory, PerformancePoint } from './types';
-import { calculateLetterStats, calculateBigramStats, calculateOverallLetterStats, calculateOverallBigramStats } from './utils';
+import { TimingHistory, PerformancePoint } from '../../types/types';
+import { calculateLetterStats, calculateBigramStats, calculateOverallLetterStats, calculateOverallBigramStats } from '../../utils/utils';
+import './ResultsScreen.css';
 
 interface ResultsScreenProps {
   performanceData: PerformancePoint[];
@@ -42,7 +43,6 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   calculateWordStats,
   calculateOverallWordStats
 }) => {
-  // Calculate overall stats
   const calculateOverallStats = () => {
     if (timingHistory.historicalPerformance.length === 0) return null;
     
@@ -238,12 +238,12 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
                 </span>
                 <span className="time">{averageTime}ms</span>
                 <div className="stat-details">
-                  <span className="occurrences">
+                  <div className="occurrences">
                     {occurrences} {'times'}
-                  </span>
-                  <span className="mistypes">
+                  </div>
+                  <div className="mistypes">
                     {mistypes} {'mistypes'}
-                  </span>
+                  </div>
                 </div>
               </div>
             ))}

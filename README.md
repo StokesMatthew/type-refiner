@@ -1,46 +1,91 @@
-# Getting Started with Create React App
+# Type Refiner
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A sophisticated typing practice application that helps you improve your typing speed and accuracy by analyzing your performance and targeting your weak points.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- Real-time typing speed (WPM) and accuracy tracking
+- Performance analysis for letters, bigrams (letter combinations), and words
+- Smart word selection that prioritizes challenging words based on:
+  - Historical typing speed
+  - Recent mistakes
+  - Difficult letter combinations
+- Detailed statistics and performance graphs
+- Progress tracking across sessions
+- Strict mode for enforcing accurate typing
+- Target highlighting for problematic patterns
 
-### `npm start`
+## Getting Started
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### Prerequisites
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+- Node.js (v14 or higher)
+- npm or yarn
 
-### `npm test`
+### Installation
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/type-refiner.git
+cd type-refiner
+```
 
-### `npm run build`
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+3. Start the development server:
+```bash
+npm start
+# or
+yarn start
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Usage
 
-### `npm run eject`
+1. Start typing the displayed words
+2. The cursor will automatically move to the next word when you press space
+3. In strict mode, you must correct mistakes before moving to the next word
+4. After completing the test, view your results and analysis
+5. Toggle between current and overall statistics to track your progress
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## Features in Detail
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Performance Tracking
+- Words Per Minute (WPM) calculation
+- Accuracy percentage
+- Real-time performance graph
+- Historical performance tracking
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### Analysis
+- Letter timing analysis
+- Bigram (letter combination) analysis
+- Word-specific performance tracking
+- Mistake tracking for targeted practice
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+### Customization
+- Strict Mode: Requires correct typing before proceeding
+- Hide Targets: Removes highlighting of challenging patterns
+- Performance view toggle between current and overall statistics
 
-## Learn More
+### Data Management
+- Automatic saving of progress
+- Option to delete historical data
+- Persistent storage across sessions
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Technical Details
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Built with:
+- React
+- TypeScript
+- CSS Modules
+- Local Storage for data persistence
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details
