@@ -26,9 +26,13 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onToggleStrictMode,
   onToggleHideTargets
 }) => {
+  // Reference to the container div for calculating word wrapping
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Array of lines containing word elements after word wrapping calculation
   const [lines, setLines] = useState<React.ReactElement[][]>([]);
 
+  // Calculate word wrapping based on container width
   useEffect(() => {
     const calculateLines = () => {
       if (!containerRef.current) return;
@@ -72,9 +76,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
     return () => window.removeEventListener('resize', calculateLines);
   }, [words, wordIndex, currentInput, completedInputs, hideTargets]);
 
+  // Render a single word with appropriate styling based on typing progress
   const renderWord = (word: string, index: number) => {
     const { letters, bigrams, words: targetWords } = getTargetedPatterns(timingHistory);
     
+    // Track indices of characters that are part of targeted bigrams
     const bigramIndices = new Set<number>();
     for (let i = 0; i < word.length - 1; i++) {
       const bigram = word.slice(i, i + 2);
@@ -84,12 +90,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
       }
     }
     
+    // Render a single character with appropriate styling
     const renderChar = (char: string, charIndex: number) => {
       let className = '';
       const isTargetedLetter = letters.includes(char);
       const isInTargetedBigram = bigramIndices.has(charIndex);
       const isInTargetedWord = targetWords.includes(word);
       
+      // Apply styling based on typing progress and correctness
       if (index < wordIndex) {
         const typedInput = completedInputs[index];
         className = typedInput?.[charIndex] === char ? 'correct-char' : 'incorrect-char';
@@ -103,6 +111,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         className = 'untyped-char';
       }
       
+      // Apply additional styling for targeted patterns
       if (!hideTargets) {
         if (isTargetedLetter) {
           className += ' targeted-pattern';
@@ -122,6 +131,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       );
     };
 
+    // Render completed words
     if (index < wordIndex) {
       return (
         <span>
@@ -131,6 +141,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       );
     }
     
+    // Render current word with cursor
     if (index === wordIndex) {
       const cursorOffset = 0.55 * currentInput.length;
 
@@ -152,6 +163,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       );
     }
     
+    // Render upcoming words
     return (
       <span>
         {word.split('').map((char, charIndex) => renderChar(char, charIndex))}

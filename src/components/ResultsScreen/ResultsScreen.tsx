@@ -13,9 +13,7 @@ interface ResultsScreenProps {
   wordIndex: number;
   completedInputs: string[];
   currentInput: string;
-  letterTimings: { [key: string]: number[] };
-  bigramTimings: { [key: string]: number[] };
-  wordTimings: { [key: string]: number[] };
+  typeTimings: { letters: { [key: string]: number[] }, bigrams: { [key: string]: number[] }, words: { [key: string]: number[] } };
   onTabChange: (tab: 'letters' | 'bigrams' | 'words') => void;
   onToggleOverall: () => void;
   onReset: () => void;
@@ -33,9 +31,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   wordIndex,
   completedInputs,
   currentInput,
-  letterTimings,
-  bigramTimings,
-  wordTimings,
+  typeTimings,
   onTabChange,
   onToggleOverall,
   onReset,
@@ -43,6 +39,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   calculateWordStats,
   calculateOverallWordStats
 }) => {
+  // Calculate average WPM and accuracy across all typing sessions
   const calculateOverallStats = () => {
     if (timingHistory.historicalPerformance.length === 0) return null;
     
@@ -195,9 +192,9 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
         <div className="letter-stats">
           <h3>{showingOverall ? 'Overall' : 'Current'} Letter Analysis</h3>
           <div className="stats-grid">
-            {(showingOverall ? calculateOverallLetterStats(words, wordIndex, completedInputs, currentInput, letterTimings, timingHistory) : calculateLetterStats(words, wordIndex, completedInputs, currentInput, letterTimings)).map(({ letter, averageTime, occurrences }) => (
+            {(showingOverall ? calculateOverallLetterStats(words, wordIndex, completedInputs, currentInput, typeTimings.letters, timingHistory) : calculateLetterStats(words, wordIndex, completedInputs, currentInput, typeTimings.letters)).map(({ letter, averageTime, occurrences }) => (
               <div key={letter} className="stat-item">
-                <span className={`letter ${calculateLetterStats(words, wordIndex, completedInputs, currentInput, letterTimings).some((stat) => stat.letter === letter) ? '' : 'seen'}`}>
+                <span className={`letter ${calculateLetterStats(words, wordIndex, completedInputs, currentInput, typeTimings.letters).some((stat) => stat.letter === letter) ? '' : 'seen'}`}>
                   {letter === ' ' ? '␣' : letter}
                 </span>
                 <span className="time">{averageTime.toFixed(0)}ms</span>
@@ -211,11 +208,12 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
       )}
       {selectedTab === 'bigrams' && (
         <div className="letter-stats">
-          <h3>{showingOverall ? 'Overall' : 'Current'} Letter Combinations</h3>
+          <h3>{showingOverall ? 'Overall' : 'Current'} Bigram Analysis</h3>
           <div className="stats-grid">
-            {(showingOverall ? calculateOverallBigramStats(words, wordIndex, completedInputs, currentInput, letterTimings, timingHistory) : calculateBigramStats(words, wordIndex, completedInputs, currentInput, letterTimings, bigramTimings)).map(({ bigram, averageTime, occurrences }) => (
+            {(showingOverall ? calculateOverallBigramStats(words, wordIndex, completedInputs, currentInput, typeTimings.letters, timingHistory) 
+                : calculateBigramStats(words, wordIndex, completedInputs, currentInput, typeTimings.bigrams)).map(({ bigram, averageTime, occurrences }) => (
               <div key={bigram} className="stat-item">
-                <span className={`letter ${calculateBigramStats(words, wordIndex, completedInputs, currentInput, letterTimings, bigramTimings).some((stat) => stat.bigram === bigram) ? '' : 'seen'}`}>
+                <span className={`letter ${calculateBigramStats(words, wordIndex, completedInputs, currentInput, typeTimings.bigrams).some((stat) => stat.bigram === bigram) ? '' : 'seen'}`}>
                   {bigram}
                 </span>
                 <span className="time">{averageTime}ms</span>

@@ -10,20 +10,46 @@ const WORDS_COUNT = 20;
 const STORAGE_KEY = 'type-refiner-data';
 
 const TypingGame: React.FC = () => {
+  // Array of words to be typed in the current game session
   const [words, setWords] = useState<string[]>([]);
+  
+  // Current user input for the active word
   const [currentInput, setCurrentInput] = useState('');
+  
+  // Index of the current word being typed
   const [wordIndex, setWordIndex] = useState(0);
+  
+  // Timestamp when the game started
   const [startTime, setStartTime] = useState<number | null>(null);
+  
+  // Record of when each word was started and how many characters were typed
   const [wordStartTimes, setWordStartTimes] = useState<{ [key: string]: { startTime: number; charsTyped: number } }>({});
+  
+  // Count of mistypes for each word
   const [wordMistypes, setWordMistypes] = useState<{ [key: string]: number }>({});
+  
+  // Count of mistakes for each letter
   const [letterMistakes, setLetterMistakes] = useState<{ [key: string]: number }>({});
+  
+  // Total number of keystrokes in the current game
   const [totalKeystrokes, setTotalKeystrokes] = useState(0);
+  
+  // Total number of typing mistakes in the current game
   const [totalMistakes, setTotalMistakes] = useState(0);
+
+  // Whether the current game is complete
   const [isGameComplete, setIsGameComplete] = useState(false);
+  
+  // Timestamp of the last key press
   const [lastKeyPressTime, setLastKeyPressTime] = useState<number | null>(null);
+  
+  // Array of completed word inputs
   const [completedInputs, setCompletedInputs] = useState<string[]>([]);
+  
+  // Array of performance data points (WPM and accuracy) for the current game
   const [performanceData, setPerformanceData] = useState<PerformancePoint[]>([]);
 
+  // Historical timing data for letters, bigrams, and words
   const [timingHistory, setTimingHistory] = useState<TimingHistory>({ 
     letters: {}, 
     bigrams: {}, 
@@ -35,12 +61,14 @@ const TypingGame: React.FC = () => {
     wordMistypes: {}
   });
 
+  // Timing data for the current game session
   const [typeTimings, setTypeTimings] = useState<{ 
     letters: { [key: string]: number[] }, 
     bigrams: { [key: string]: number[] }, 
     words: { [key: string]: number[] } }>
     ({ letters: {}, bigrams: {}, words: {} });
     
+  // User preferences for game settings
   const [preferences, setPreferences] = useState<UserPreferences>({
     strictMode: true,
     hideTargets: false,
@@ -48,6 +76,7 @@ const TypingGame: React.FC = () => {
     showingOverall: false
   });
 
+  // Load saved typing data from localStorage on component mount
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -59,14 +88,16 @@ const TypingGame: React.FC = () => {
     }
   }, []);
 
+  // Save typing data to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(timingHistory));
   }, [timingHistory]);
 
+  // Update performance statistics when game is complete
   useEffect(() => {
     if (isGameComplete) {
       const letterStats = calculateLetterStats(words, wordIndex, completedInputs, currentInput, typeTimings.letters);
-      const bigramStats = calculateBigramStats(words, wordIndex, completedInputs, currentInput, typeTimings.letters, typeTimings.bigrams);
+      const bigramStats = calculateBigramStats(words, wordIndex, completedInputs, currentInput, typeTimings.bigrams);
       
       const newLetterTimings: { [key: string]: number } = {};
       const newBigramTimings: { [key: string]: number } = {};
@@ -148,23 +179,7 @@ const TypingGame: React.FC = () => {
     }
   }, [isGameComplete]);
 
-  const resetGame = useCallback(() => {
-    setWords(generateWeightedWords(WORDS_COUNT, timingHistory));
-    setCurrentInput('');
-    setWordIndex(0);
-    setStartTime(null);
-    setTypeTimings({letters: {}, bigrams: {}, words: {}});
-    setWordStartTimes({});
-    setWordMistypes({});
-    setLetterMistakes({});
-    setTotalKeystrokes(0);
-    setTotalMistakes(0);
-    setIsGameComplete(false);
-    setLastKeyPressTime(null);
-    setCompletedInputs([]);
-    setPerformanceData([]);
-  }, [timingHistory]);
-
+  // Update performance metrics in real-time as user types
   const updatePerformanceData = useCallback((overrideInput: string, currentTime: number) => {
     if (!startTime) return;
   
@@ -214,6 +229,7 @@ const TypingGame: React.FC = () => {
     });
   }, [startTime, wordIndex, words, completedInputs]);
   
+  // Handle keyboard input during the typing game
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
     if (e.key.length === 1 || e.key === ' ') {
       e.preventDefault();
@@ -358,6 +374,7 @@ const TypingGame: React.FC = () => {
     }
   }, [words, wordIndex, currentInput, startTime, lastKeyPressTime, preferences.strictMode, typeTimings.letters, typeTimings.bigrams, typeTimings.words, letterMistakes, totalMistakes, totalKeystrokes, completedInputs, updatePerformanceData]);
 
+  // Attach and detach keyboard event listener
   useEffect(() => {
     const handleGlobalKeyPress = (e: KeyboardEvent) => {
       if (!isGameComplete) {
@@ -369,6 +386,7 @@ const TypingGame: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeyPress);
   }, [isGameComplete, handleKeyPress]);
 
+  // Calculate final typing statistics
   const calculateStats = () => {
     if (!startTime || !isGameComplete) return null;
 
@@ -409,6 +427,25 @@ const TypingGame: React.FC = () => {
   
   const stats = calculateStats();
 
+  // Reset game state for a new session
+  const resetGame = useCallback(() => {
+    setWords(generateWeightedWords(WORDS_COUNT, timingHistory));
+    setCurrentInput('');
+    setWordIndex(0);
+    setStartTime(null);
+    setTypeTimings({letters: {}, bigrams: {}, words: {}});
+    setWordStartTimes({});
+    setWordMistypes({});
+    setLetterMistakes({});
+    setTotalKeystrokes(0);
+    setTotalMistakes(0);
+    setIsGameComplete(false);
+    setLastKeyPressTime(null);
+    setCompletedInputs([]);
+    setPerformanceData([]);
+  }, [timingHistory]);
+
+  // Delete all saved typing data
   const handleDeleteData = () => {
     if (window.confirm('Are you sure you want to delete all your typing data? This action cannot be undone.')) {
       const emptyHistory = { 
@@ -462,15 +499,13 @@ const TypingGame: React.FC = () => {
           wordIndex={wordIndex}
           completedInputs={completedInputs}
           currentInput={currentInput}
-          letterTimings={typeTimings.letters}
-          bigramTimings={typeTimings.bigrams}
-          wordTimings={typeTimings.words}
+          typeTimings={typeTimings}
           onTabChange={(tab) => setPreferences({...preferences, selectedTab: tab})}
           onToggleOverall={() => setPreferences({...preferences, showingOverall: !preferences.showingOverall})}
           onReset={resetGame}
           onDeleteData={handleDeleteData}
-          calculateWordStats={() => calculateWordStats(words, completedInputs, typeTimings.words, wordMistypes)}
-          calculateOverallWordStats={() => calculateOverallWordStats(words, completedInputs, typeTimings.words, wordMistypes, timingHistory, isGameComplete)}
+          calculateWordStats={() => calculateWordStats(words, typeTimings.words, wordMistypes)}
+          calculateOverallWordStats={() => calculateOverallWordStats(words, typeTimings.words, wordMistypes, timingHistory, isGameComplete)}
         />
       )}
     </div>
