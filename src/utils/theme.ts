@@ -1,4 +1,4 @@
-export let isDarkMode = true;
+export let isDarkMode = false;
 
 export const themes = {
     light: {
