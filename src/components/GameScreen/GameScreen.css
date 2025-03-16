@@ -13,7 +13,7 @@
   font-size: 1.5rem;
   line-height: 1.6;
   color: var(--text);
-  background: white;
+  background: var(--surface);
   padding: 20px;
   border-radius: 8px;
   min-height: 100px;
@@ -130,11 +130,11 @@
 }
 
 .targeted-item {
-  background: white;
+  background: var(--surface);
   padding: 5px 10px;
   border-radius: 4px;
   color: var(--primary);
-  font-weight: 500;
+  font-weight: bold;
   font-family: 'Roboto Mono', monospace;
   border: 1px solid var(--border);
 }
@@ -162,7 +162,8 @@
 }
 
 .strict-mode-toggle,
-.hide-targets-toggle {
+.hide-targets-toggle,
+.dark-mode-toggle {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -170,7 +171,8 @@
 }
 
 .strict-mode-toggle input[type="checkbox"],
-.hide-targets-toggle input[type="checkbox"] {
+.hide-targets-toggle input[type="checkbox"],
+.dark-mode-toggle input[type="checkbox"] {
   width: 1.2rem;
   height: 1.2rem;
   cursor: pointer;

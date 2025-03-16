@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { TimingHistory } from '../../types/types';
 import { getTargetedPatterns } from '../../utils/utils';
 import './GameScreen.css';
-
+import { toggleTheme, isDarkMode } from '../../utils/theme';
 interface GameScreenProps {
   words: string[];
   wordIndex: number;
@@ -31,6 +31,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
   
   // Array of lines containing word elements after word wrapping calculation
   const [lines, setLines] = useState<React.ReactElement[][]>([]);
+
+  // Dark mode toggle
+  const [darkMode, setDarkMode] = useState(false);
 
   // Calculate word wrapping based on container width
   useEffect(() => {
@@ -172,6 +175,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
     );
   };
 
+  const handleThemeChange = () => {
+    setDarkMode(!darkMode);
+    toggleTheme();
+  }
+
   return (
     <>
       <div className="game-container">
@@ -201,6 +209,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
               onChange={onToggleHideTargets}
             />
             <span className="toggle-label">Hide Targets</span>
+          </label>
+          <label className="dark-mode-toggle">
+            <input
+              type="checkbox"
+              checked={isDarkMode}
+              onChange={handleThemeChange}
+            />
+            <span className="toggle-label">Dark Mode</span>
           </label>
         </div>
       </div>
