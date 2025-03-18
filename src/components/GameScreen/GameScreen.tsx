@@ -3,6 +3,8 @@ import { TimingHistory } from '../../types/types';
 import { getTargetedPatterns } from '../../utils/utils';
 import './GameScreen.css';
 import { toggleTheme, isDarkMode } from '../../utils/theme';
+import { HelpModal } from './HelpModal';
+
 interface GameScreenProps {
   words: string[];
   wordIndex: number;
@@ -34,6 +36,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
   // Dark mode toggle
   const [darkMode, setDarkMode] = useState(false);
+
+  // Add this state for the modal
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Calculate word wrapping based on container width
   useEffect(() => {
@@ -183,12 +188,17 @@ const GameScreen: React.FC<GameScreenProps> = ({
   return (
     <>
       <div className="game-container">
-        <div className="words-display" ref={containerRef}>
-          {lines.map((line, lineIdx) => (
-            <div key={lineIdx} className="words-line">
-              {line}
-            </div>
-          ))}
+        <div className="game-header">
+          <div className="help-icon" onClick={() => setIsHelpOpen(true)}>
+              ?
+          </div>
+          <div className="words-display" ref={containerRef}>
+            {lines.map((line, lineIdx) => (
+              <div key={lineIdx} className="words-line">
+                {line}
+              </div>
+            ))}
+          </div>
         </div>
         <div className="typing-prompt">
           Start typing to begin
@@ -255,6 +265,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           </div>
         </div>
       )}
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>
   );
 };
